@@ -21,7 +21,7 @@ state.console = Console.new()
 state.sidepanel:add_component(state.console)
 
 M.open_terminal = function()
-    local last_window = vim.api.nvim_get_current_win()
+    -- local last_window = vim.api.nvim_get_current_win()
     state.sidepanel:set_active_with_open(state.console)
     if not M.is_buf_terminal() then
         vim.api.nvim_set_current_win(state.sidepanel.win)
@@ -29,7 +29,7 @@ M.open_terminal = function()
         vim.bo[state.console.buf].buflisted = false
         -- vim.keymap.set("n", "q", M.close_terminal, { buffer = state.console.buf })
         M.term_channel = vim.bo.channel
-        vim.api.nvim_set_current_win(last_window)
+        -- vim.api.nvim_set_current_win(last_window)
     end
 end
 

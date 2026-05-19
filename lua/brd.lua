@@ -1,4 +1,5 @@
 local M = {}
+local dm = require("debugmaster")
 
 local default_config = {
     debugmaster = false,
@@ -10,7 +11,6 @@ M.setup = function(user_config)
     plugin_config = vim.tbl_deep_extend('force', vim.deepcopy(default_config), user_config or {})
 
     if plugin_config.debugmaster then
-        local dm = require("debugmaster")
         M.term = require("terminal.debugmaster")
 
         dm.keys.get("x").key = "dp"
@@ -56,6 +56,29 @@ M.setup = function(user_config)
             action = M.term.open_terminal,
             desc = "open (C)onsole",
         })
+
+        vim.keymap.set("n", "<bs><bs>", dm.mode.toggle)
+        vim.keymap.set("n", "<Esc>", dm.mode.disable)
+
+        -- local state = require("debugmaster.state")
+        -- vim.keymap.set("n", "<bs>u", function()
+        --     state.sidepanel:toggle()
+        -- end)
+
+        -- vim.keymap.set("n", "<bs>J", M.build)
+        -- vim.keymap.set("n", "<bs>X", M.run)
+        -- vim.keymap.set("n", "<bs>P", M.debug)
+        -- vim.keymap.set("n", "<bs>x", M.build_and_run)
+        -- vim.keymap.set("n", "<bs>p", M.build_and_debug)
+        -- vim.keymap.set("n", "<bs>s", M.choose_target)
+        -- vim.keymap.set("n", "<bs>C", M.term.open_terminal)
+
+        local keymaps = require("debugmaster.debug.keymaps")
+        for _, group in ipairs(keymaps.groups) do
+            for _, mapping in ipairs(group.mappings) do
+                vim.keymap.set("n", "<bs>" .. mapping.key, mapping.action, { desc = mapping.desc })
+            end
+        end
     else
         M.term = require("terminal.basic")
     end
@@ -131,12 +154,31 @@ local function normalize(value)
 end
 
 local function normalize_path(config_dir, path)
+    if path == nil or path == '' then
+        return config_dir
+    end
+
     local normalized_path = vim.fs.normalize(path)
     if string.sub(normalized_path, 1, 1) == '/' then
         return normalized_path
     else
         return vim.fs.joinpath(config_dir, path)
     end
+end
+
+M.get_directory = function()
+    local config, config_dir = get_config()
+    if config == nil then
+        print("error while reading config")
+        return
+    end
+    local target = get_target(config)
+    if target == nil then
+        print("target not set")
+        return
+    end
+
+    return normalize_path(config_dir, normalize(config[target]["dir"]))
 end
 
 M.get_debug_executable = function()
@@ -152,7 +194,7 @@ M.get_debug_executable = function()
     end
 
     local dir = normalize_path(config_dir, normalize(config[target]["dir"]))
-    local debug_executable = normalize(config[_target]["debug"]["executable"])
+    local debug_executable = normalize(config[target]["debug"]["executable"])
     if debug_executable == nil then
         print("debug executable not set")
         return nil
@@ -169,7 +211,11 @@ local function debug(config, target)
         print("debug configuration not found")
         return
     end
+
+    local state = require("debugmaster.state")
+    state.sidepanel:close()
     require("dap").run(M.dap_configurations[debug_configuration])
+    state.sidepanel:open()
 end
 
 local function execute_in_terminal(command_dir, command)
@@ -262,6 +308,7 @@ M.debug = function()
                 print("error while reading config")
                 return
             end
+            local current_win = vim.api.nvim_get_current_win()
             local target = get_target(config)
             if target == nil then
                 print("target not set")
@@ -290,7 +337,7 @@ M.build_and_run = function()
 
             local exit_code = 0
             local build = normalize(config[target]["build"])
-            if not (build == "" or build == nil) then
+            if not (build == nil or build == "") then
                 exit_code = execute_in_terminal(command_dir, build)
             end
 
@@ -311,6 +358,7 @@ M.build_and_debug = function()
                 print("error while reading config")
                 return
             end
+            -- local current_win = vim.api.nvim_get_current_win()
             local target = get_target(config)
             if target == nil then
                 print("target not set")
@@ -324,6 +372,7 @@ M.build_and_debug = function()
 
             if exit_code == 0 then
                 M.term.close_terminal()
+                -- vim.api.nvim_set_current_win(current_win)
                 debug(config, target)
             end
         end
