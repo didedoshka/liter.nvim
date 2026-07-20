@@ -791,6 +791,45 @@ t.test("write-back finds a param called through a module table", function()
     t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = litre.param("mode", { "a", "b" })')
 end)
 
+-- The tests above pin the exact text for known-good values. This one pins the
+-- property that matters for anything else: whatever goes in, the file still
+-- parses as Lua afterwards and the option reads back byte-identical.
+local function roundtrip(value)
+    local f = vim.fs.joinpath(tmp, "pf_rt.lua")
+    write(f, 'local m = param("p", { "a" })')
+    if not params.add_option(f, "p", value) then
+        return nil, "add_option refused"
+    end
+    local src = table.concat(vim.fn.readfile(f), "\n")
+    local chunk, lerr = loadstring(src)
+    if not chunk then
+        return nil, ("no longer parses (%s) -- source: %s"):format(lerr, src)
+    end
+    local got
+    setfenv(chunk, { param = function(_, opts) got = opts end })
+    local ok, rerr = pcall(chunk)
+    if not ok then
+        return nil, "no longer runs: " .. tostring(rerr)
+    end
+    return got
+end
+
+t.test("write-back round-trips awkward values without breaking the file", function()
+    for _, value in ipairs({
+        [[a"b]], [[c:\tmp]], "it's", "100%", "a\tb", "héllo", "}", [[\]], [["]],
+        "both'and\"", "-- not a comment", "]] .. [[",
+        -- a real line break used to be spliced in as-is, leaving the file
+        -- unparseable while add_option still reported success
+        "a\nb", "trailing\n", "\r\n",
+    }) do
+        local got, err = roundtrip(value)
+        t.ok(got ~= nil, ("value %q: %s"):format(value, tostring(err)))
+        if got then
+            t.eq(got, { "a", value }, ("value %q did not round-trip"):format(value))
+        end
+    end
+end)
+
 t.test("write-back for a param that is not in the file fails cleanly", function()
     local f = vim.fs.joinpath(tmp, "pf_two.lua")
     t.notified = {}

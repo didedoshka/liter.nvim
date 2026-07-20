@@ -27,6 +27,16 @@ local function captures(query, match)
     return caps
 end
 
+-- Body of a Lua string literal delimited by `quote`. Backslash first, then the
+-- quote, then the line breaks: an unescaped newline would splice a real line
+-- break into the source and leave the user's file unparseable.
+local function escape(value, quote)
+    return (value:gsub("\\", "\\\\")
+        :gsub(quote, "\\" .. quote)
+        :gsub("\n", "\\n")
+        :gsub("\r", "\\r"))
+end
+
 -- Insertion point for a new option of param `name`: 0-based row, col and the
 -- text to splice in. nil + reason when the param has no literal list.
 local function find_insert(src, name, value)
@@ -50,13 +60,12 @@ local function find_insert(src, name, value)
                 if quote ~= "'" then
                     quote = '"'
                 end
-                local escaped = value:gsub("\\", "\\\\"):gsub(quote, "\\" .. quote)
                 local _, _, erow, ecol = last:range()
-                return erow, ecol, (", %s%s%s"):format(quote, escaped, quote)
+                return erow, ecol, (", %s%s%s"):format(quote, escape(value, quote), quote)
             end
             local brace = caps.opts:child(0) -- "{" of an empty list
             local _, _, erow, ecol = brace:range()
-            return erow, ecol, (' "%s" '):format(value:gsub("\\", "\\\\"):gsub('"', '\\"'))
+            return erow, ecol, (' "%s" '):format(escape(value, '"'))
         end
     end
     return nil, ("litre: no literal option list found for param %q in this file"):format(name)
