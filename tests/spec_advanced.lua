@@ -401,6 +401,92 @@ t.test("map() to a non-global is skipped with a warning", function()
     end)
 end)
 
+-- A file registers params and maps as it executes, so anything it registered
+-- before raising is already in the collector when the error unwinds it.
+write(vim.fs.joinpath(tmp, "ghost", ".litre.lua"), [[
+local mode = param("ghost_param", { "x", "y" })
+map("g", function() end)
+function ghost_task()
+end
+error("boom after registering")
+]])
+
+t.test("a file that raises after param() does not leak the param", function()
+    at(vim.fs.joinpath(tmp, "ghost"), function()
+        t.notified = {}
+        local d = discover.load()
+        t.ok(notified("boom after registering"), "the error was not reported")
+        t.ok(not find(d, "ghost_task"), "a task from the failed file survived")
+        for _, p in ipairs(d.params) do
+            t.ok(p.name ~= "ghost_param",
+                "param from a file that failed to load: " .. vim.inspect(d.params))
+        end
+    end)
+end)
+
+t.test("a file that raises after map() does not leak the mapping", function()
+    at(vim.fs.joinpath(tmp, "ghost"), function()
+        t.notified = {}
+        local d = discover.load()
+        t.eq(d.maps["g"], nil, "mapping from a file that failed to load survived")
+    end)
+end)
+
+-- The contract is "every callable own-global is a task". These pin its edges:
+-- what counts as callable, and what a file can do to the primitives it inherits.
+write(vim.fs.joinpath(tmp, "empty", ".litre.lua"), "")
+
+write(vim.fs.joinpath(tmp, "callable", ".litre.lua"), [[
+callable_task = setmetatable({}, { __call = function() vim.g.x_callable = 7 end })
+plain_table = { 1, 2, 3 }
+scalar = 5
+]])
+
+write(vim.fs.joinpath(tmp, "shadow", ".litre.lua"), [[
+function sh()
+    vim.g.x_shadowed_sh = "mine"
+end
+function uses_sh()
+    sh({ "true" })
+end
+]])
+
+t.test("an empty .litre.lua contributes nothing and says nothing", function()
+    at(vim.fs.joinpath(tmp, "empty"), function()
+        t.notified = {}
+        local d = discover.load()
+        t.eq(t.notified, {}, "an empty file should load silently")
+        t.ok(find(d, "../outer_task"), "the outer file was dropped")
+        for _, task in ipairs(d.tasks) do
+            t.ok(task.dir ~= vim.fs.joinpath(tmp, "empty"),
+                "the empty file produced a task: " .. task.id)
+        end
+    end)
+end)
+
+t.test("a callable table is a task; a plain table and a scalar are not", function()
+    at(vim.fs.joinpath(tmp, "callable"), function()
+        local d = discover.load()
+        t.ok(find(d, "callable_task"), "a __call table was not treated as a task")
+        t.ok(not find(d, "plain_table"), "a plain table became a task")
+        t.ok(not find(d, "scalar"), "a number became a task")
+    end)
+end)
+
+t.test("a global named after a primitive shadows it, silently", function()
+    at(vim.fs.joinpath(tmp, "shadow"), function()
+        t.notified = {}
+        local d = discover.load()
+        t.ok(find(d, "sh"), "the shadowing global is not itself a task")
+        t.eq(t.notified, {}, "shadowing a primitive is currently not reported")
+        -- and the file's own calls resolve to it rather than to lib.sh: the
+        -- task below would otherwise need a coroutine to run at all
+        vim.g.x_shadowed_sh = nil
+        assert(find(d, "uses_sh")).fn()
+        t.eq(vim.g.x_shadowed_sh, "mine", "sh() did not resolve to the global")
+    end)
+end)
+
 t.test("a map() on a layer verb is stripped when the layer loads", function()
     at(vim.fs.joinpath(tmp, "weird"), function()
         t.notified = {}
