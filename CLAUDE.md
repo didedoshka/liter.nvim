@@ -39,4 +39,6 @@ this box. lua-ls does not catch cross-module breakage; only the spec does.
 
 4-space indent, double quotes, ~100 cols; formatting via lua_ls/EmmyLuaCodeStyle
 from `.luarc.json` -- no stylua. Comments explain *why*, never the next line.
-Don't commit unless asked.
+Commit each verified change (suite green) without asking. Never rewrite
+history -- no amend, rebase, or reset past a commit; fix forward with a new
+commit, so nothing is ever lost.
