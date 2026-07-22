@@ -158,6 +158,13 @@ end
 function dbgmissing()
     debug("nope")
 end
+function badparam()
+    param("late", { "x" })
+end
+function twostep()
+    sh({ "sleep", "0.15" })
+    sh({ "printf", "second-half" })
+end
 streamer = cmd({ "printf", "from-cmd" })
 map("b", envbundle)
 ]])
@@ -175,6 +182,13 @@ function real_task()
 end
 map("x", real_task)
 map("z", function() end)
+]])
+
+write(vim.fs.joinpath(tmp, "badmap", ".litre.lua"), [[
+function mc_task()
+end
+map("gd", mc_task)
+map(vim.keycode("<F5>"), mc_task)
 ]])
 
 vim.cmd.cd(work)
@@ -360,6 +374,22 @@ t.test("a re-run replaces the buffer in every window showing it, without stealin
     vim.cmd("only")
 end)
 
+t.test("a deleted output buffer is reopened by the task's next sh()", function()
+    local task = assert(find(discover.load(), "twostep"))
+    runner.run(task)
+    local first = term.buf("twostep")
+    t.ok(first, "first sh() opened no buffer")
+    vim.api.nvim_buf_delete(assert(first), { force = true })
+    t.ok(wait_done(task), "twostep did not finish")
+    local buf = term.buf("twostep")
+    t.ok(buf, "the second sh() did not reopen a buffer")
+    t.ok(vim.wait(2000, function()
+        local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+        return text:find("second-half", 1, true) ~= nil
+    end, 10), "the second command's output was lost")
+    vim.cmd.enew()
+end)
+
 -- --- discovery error paths --------------------------------------------------
 t.test("a .litre.lua that does not compile is reported, outer files still load", function()
     at(vim.fs.joinpath(tmp, "broken"), function()
@@ -398,6 +428,17 @@ t.test("map() to a non-global is skipped with a warning", function()
             "unexpected: " .. vim.inspect(t.notified))
         t.eq(d.maps["z"], nil)
         t.ok(d.maps["x"], "the resolvable map was dropped as well")
+    end)
+end)
+
+t.test("map() on a key the layer can never deliver is skipped with a warning", function()
+    at(vim.fs.joinpath(tmp, "badmap"), function()
+        t.notified = {}
+        local d = discover.load()
+        t.ok(notified('map("gd") is not a single key'),
+            "unexpected: " .. vim.inspect(t.notified))
+        t.eq(d.maps["gd"], nil)
+        t.ok(d.maps[vim.keycode("<F5>")], "a vim.keycode special key should be accepted")
     end)
 end)
 
@@ -630,6 +671,16 @@ t.test("edit_config offers a path at cwd when no .litre.lua exists", function()
     end)
 end)
 
+t.test("edit_config reaches a .litre.lua that fails to load", function()
+    at(vim.fs.joinpath(tmp, "broken"), function()
+        litre.edit_config()
+        t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)),
+            vim.fs.joinpath(tmp, "broken", ".litre.lua"),
+            "the broken innermost file is exactly the one that needs editing")
+        vim.cmd.enew()
+    end)
+end)
+
 t.test("pick_task warns when there is nothing to pick", function()
     at(bare, function()
         t.notified = {}
@@ -730,6 +781,14 @@ t.test("map() outside a load is an error, not a silent no-op", function()
     t.ok(tostring(err):find("top level", 1, true), tostring(err))
 end)
 
+-- a param declared inside a task would read a value but never register while
+-- discovery runs, so the picker could not see it -- refuse instead of half-working
+t.test("param() inside a task errors instead of half-working", function()
+    t.notified = {}
+    run("badparam")
+    t.ok(notified("top level"), "unexpected: " .. vim.inspect(t.notified))
+end)
+
 -- --- persisted state --------------------------------------------------------
 t.test("state survives a round trip and is keyed by file and name", function()
     local f1, f2 = "/one/.litre.lua", "/two/.litre.lua"
@@ -828,6 +887,24 @@ t.test("write-back round-trips awkward values without breaking the file", functi
             t.eq(got, { "a", value }, ("value %q did not round-trip"):format(value))
         end
     end
+end)
+
+t.test("write-back finds a buffer opened through a symlinked path", function()
+    local real = vim.fs.joinpath(tmp, "real")
+    local target = vim.fs.joinpath(real, ".litre.lua")
+    write(target, 'local m = param("mode", { "a" })')
+    local link = vim.fs.joinpath(tmp, "link")
+    assert(vim.uv.fs_symlink(real, link))
+    vim.cmd.edit(vim.fs.joinpath(link, ".litre.lua"))
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(buf, 0, 0, true, { "-- via symlink" })
+    t.ok(params.add_option(target, "mode", "b"))
+    local text = table.concat(vim.fn.readfile(target), "\n")
+    t.ok(text:find("-- via symlink", 1, true),
+        "buffer edit lost -- the disk path was edited behind the buffer's back")
+    t.ok(text:find('"a", "b"', 1, true), "option not appended: " .. text)
+    t.eq(vim.bo[buf].modified, false, "buffer left unsaved")
+    vim.cmd.enew()
 end)
 
 t.test("write-back for a param that is not in the file fails cleanly", function()

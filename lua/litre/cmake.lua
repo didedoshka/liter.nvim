@@ -4,10 +4,11 @@
 -- to be edited down, not regenerated.
 local M = {}
 
+-- matched against the captured target name alone (%S+ -- never any
+-- parenthetical that follows it in the help line)
 local bad_targets = {
-    "^following are some of the valid targets for this Makefile:$",
-    "^all %(the default if no target is provided%)$", "^clean$", "^depend$",
-    "^edit_cache$", "^rebuild_cache$", ".*%.i$", ".*%.o$", ".*%.s$",
+    "^all$", "^clean$", "^depend$", "^edit_cache$", "^rebuild_cache$",
+    ".*%.i$", ".*%.o$", ".*%.s$",
 }
 
 local template = [[
@@ -29,6 +30,8 @@ end
 
 function M.generate(builddir)
     local base = vim.fn.expand("%:p:h")
+    -- `--target help` exists only under the Makefile generator; with Ninja the
+    -- notify below carries cmake's error
     local obj = vim.system(
         { "cmake", "--build", vim.fs.joinpath(base, builddir), "--target", "help" },
         { text = true }):wait()

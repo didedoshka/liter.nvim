@@ -1,7 +1,8 @@
 # litre v2 — design
 
-Status: brainstorm, 2026-07-19. Nothing here is implemented; this records the
-decisions and the still-open forks from the redesign discussion.
+Status: implemented (2026-07-20). Written as the 2026-07-19 brainstorm; the
+sections below record the decisions and still-open forks from the redesign
+discussion, and "v2 implementation decisions" records how each landed in code.
 
 Renamed from `brd` (build-run-debug) on 2026-07-20: v2 is a general task
 runner, so the old expansion described something it no longer is. `litre` is
@@ -349,6 +350,23 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     :restart-driven servers every restart would leak the running build.
     A `VimLeavePre` autocmd in the runner SIGTERMs every running task's
     process; verified end-to-end headlessly.
+
+14. **Review fixes (2026-07-22):** `param()` is now genuinely top-level-only —
+    the undocumented in-task fallback read a value but could never register in
+    the picker (registration only happens while discovery executes the file),
+    a trap rather than a feature. `LitreConfig`/`xc` targets the innermost
+    *discovered* file, not the innermost successfully *loaded* one, so a
+    syntax-broken config can be opened for fixing. `map()` keys that
+    `getcharstr` can never deliver (multi-char strings, `"<F5>"` notation)
+    warn and are skipped; `vim.keycode` termcodes pass. `params.json` is
+    written to a tmp file and renamed: a concurrent reader in another
+    per-project server used to be able to see a half-written file, decode `{}`
+    and wipe every selection on its next write. A `:bd!`'d output buffer is
+    reopened by the task's next `sh()` instead of streaming into the void.
+    Write-back finds the target buffer by resolved path (`bufnr()` does
+    pattern matching, and symlinked paths never matched). `:LitreCmake`
+    filters the `all` pseudo-target — its old filter pattern kept the
+    parenthetical from the help line and could never match the captured name.
 
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-

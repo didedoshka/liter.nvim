@@ -49,7 +49,9 @@ function M.sh(c, opts)
     opts = opts or {}
     local ctx = runner.ctx("sh")
     local dir = resolve_dir(ctx, opts)
-    if not ctx.chan then
+    -- term.buf() check: a :bd!'d output buffer takes its channel with it, and
+    -- the rest of the task would otherwise stream into the void
+    if not ctx.chan or not term.buf(ctx.id) then
         ctx.chan = term.open(ctx.id)
     end
     local chan = ctx.chan
@@ -195,9 +197,11 @@ end
 
 -- Declared at .litre.lua top level; returns the persisted selection (or the
 -- first option). Selection UI and source write-back live in litre.params.
+-- Top level ONLY: a param declared inside a task would read a value but never
+-- register while discovery runs, so the picker could not see it -- a trap.
 function M.param(name, options)
     local discover = require("litre.discover")
-    local file = discover.loading or (runner.current and runner.current.file)
+    local file = discover.loading
     if not file then
         error("param() belongs at .litre.lua top level", 2)
     end

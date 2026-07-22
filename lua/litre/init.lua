@@ -10,9 +10,9 @@
 --   <layer><key>  run the task map()ped to <key>
 local M = {}
 
-local verbs -- filled below; load() strips map() keys that collide with them
+local verbs -- filled below; load_tasks() strips map() keys that collide with them
 
-local function load()
+local function load_tasks()
     local d = require("litre.discover").load()
     for k in pairs(d.maps) do
         if verbs[k] then
@@ -33,7 +33,7 @@ local function short(p)
 end
 
 function M.pick_task()
-    local d = load()
+    local d = load_tasks()
     if #d.tasks == 0 then
         vim.notify("litre: no .litre.lua tasks upward of " .. short(d.cwd), vim.log.levels.WARN)
         return
@@ -63,7 +63,7 @@ end
 local NEW = "  new value..."
 
 function M.pick_param()
-    local d = load()
+    local d = load_tasks()
     local state = require("litre.state")
     if #d.params == 0 then
         vim.notify("litre: no params declared in any .litre.lua", vim.log.levels.WARN)
@@ -106,8 +106,10 @@ function M.pick_param()
 end
 
 function M.edit_config()
-    local d = load()
-    vim.cmd.edit(d.files[#d.files] or vim.fs.joinpath(d.cwd, ".litre.lua"))
+    -- the raw dir walk, not load_tasks(): a config that fails to load is
+    -- exactly the one that needs editing, and load() would drop it
+    local dirs, cwd = require("litre.discover").files()
+    vim.cmd.edit(vim.fs.joinpath(dirs[#dirs] or cwd, ".litre.lua"))
 end
 
 function M.show_output()
@@ -126,7 +128,7 @@ function M.rerun()
         vim.notify("litre: no task has run yet", vim.log.levels.WARN)
         return
     end
-    local d = load()
+    local d = load_tasks()
     for _, t in ipairs(d.tasks) do
         if t.id == runner.last.id then
             run(t)
@@ -177,7 +179,7 @@ function M.layer()
         verbs[key]()
         return
     end
-    local task = load().maps[key]
+    local task = load_tasks().maps[key]
     if task then
         run(task)
         return
@@ -194,7 +196,7 @@ function M.setup(opts)
             return
         end
         -- tasks are sorted innermost first, so a bare name hits the nearest one
-        for _, t in ipairs(load().tasks) do
+        for _, t in ipairs(load_tasks().tasks) do
             if t.id == o.args or t.name == o.args then
                 run(t)
                 return
@@ -205,7 +207,7 @@ function M.setup(opts)
         nargs = "?",
         complete = function()
             local ids = {}
-            for _, t in ipairs(load().tasks) do
+            for _, t in ipairs(load_tasks().tasks) do
                 table.insert(ids, t.id)
             end
             return ids

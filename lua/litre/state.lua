@@ -27,9 +27,14 @@ function M.set(file, name, value)
     data[file] = data[file] or {}
     data[file][name] = value
     vim.fn.mkdir(vim.fs.dirname(path()), "p")
-    local f = assert(io.open(path(), "w"))
+    -- several per-project nvim servers share this file: write to a private tmp
+    -- and rename, so a concurrent read never sees a half-written file (which
+    -- would decode as {} and let that server's next set() wipe every selection)
+    local tmp = ("%s.%d"):format(path(), vim.uv.os_getpid())
+    local f = assert(io.open(tmp, "w"))
     f:write(vim.json.encode(data))
     f:close()
+    assert(vim.uv.fs_rename(tmp, path()))
 end
 
 return M

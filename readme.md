@@ -48,7 +48,7 @@ resolves to the nearest one.
 | `input(prompt_or_opts)` | `vim.ui.input` likewise |
 | `param(name, { ... })` | declare a param; returns its current value (top level only) |
 | `debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
-| `map(key, fn)` | give a global task a layer key (top level only) |
+| `map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
 
 - `cmd`/`sh`/`out` take a **string** (runs via `<shell> -c`, default fish:
   pipes, `$VAR`, globs work) or an **argv table** (no shell, no quoting).
@@ -81,7 +81,8 @@ resolves to the nearest one.
 renders colors and progress, but no shell sits behind it. Re-running a task
 replaces the buffer under the same name; windows showing the old run switch to
 the new one, otherwise it opens in the current window like any buffer (no
-floats, no owned windows). Programs that want stdin mid-run should be
+floats, no owned windows). Deleting the buffer mid-run is fine: the task's
+next `sh` opens a fresh one. Programs that want stdin mid-run should be
 anticipated with `pick`/`input` in the task; genuinely interactive work is
 what `:terminal` is for.
 
@@ -100,7 +101,7 @@ goes through the buffer -- unsaved changes survive -- and is written.
 | --- | --- |
 | `:Litre [task]` | run by id or bare name; no argument opens the picker |
 | `:LitreConfig` | edit the innermost `.litre.lua` (path at cwd if none exists) |
-| `:LitreCmake <dir>` | generate build/run/debug tasks from cmake's target list |
+| `:LitreCmake <dir>` | generate build/run/debug tasks from cmake's target list (Makefile generator only) |
 
 Map a key to `require("litre").layer()`. Layer verbs (reserved; `map()` to them
 warns and is ignored):

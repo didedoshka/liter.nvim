@@ -71,10 +71,26 @@ local function find_insert(src, name, value)
     return nil, ("litre: no literal option list found for param %q in this file"):format(name)
 end
 
+-- bufnr() treats its argument as a name pattern (partial matches, magic
+-- chars), and a buffer opened through a symlinked path carries a different
+-- name from discovery's resolved one -- compare realpaths, exactly.
+local function loaded_buf(file)
+    local want = vim.uv.fs_realpath(file) or file
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) then
+            local name = vim.api.nvim_buf_get_name(b)
+            if name ~= "" and (vim.uv.fs_realpath(name) or name) == want then
+                return b
+            end
+        end
+    end
+    return nil
+end
+
 ---@return boolean ok
 function M.add_option(file, name, value)
-    local bufnr = vim.fn.bufnr(file)
-    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+    local bufnr = loaded_buf(file)
+    if bufnr then
         local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
         local row, col, text = find_insert(table.concat(lines, "\n"), name, value)
         if not row then

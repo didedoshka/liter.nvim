@@ -143,6 +143,10 @@ function M.load()
                 for _, m in ipairs(collect.raw_maps) do
                     if m.file == file and not m.resolved then
                         m.resolved = true
+                        -- the layer reads exactly one getcharstr() key: one
+                        -- char, or a K_SPECIAL (0x80) termcode from vim.keycode
+                        local one_key = m.key ~= ""
+                            and (vim.fn.strchars(m.key) == 1 or m.key:byte(1) == 0x80)
                         local found = nil
                         for k, v in pairs(env) do
                             if v == m.fn then
@@ -150,7 +154,12 @@ function M.load()
                                 break
                             end
                         end
-                        if not found then
+                        if not one_key then
+                            vim.notify(
+                                ("litre: map(%q) is not a single key -- use one character"
+                                    .. " or vim.keycode(); skipped"):format(m.key),
+                                vim.log.levels.WARN)
+                        elseif not found then
                             vim.notify(
                                 ("litre: map(%q) target is not a global of %s -- skipped")
                                 :format(m.key, file),
