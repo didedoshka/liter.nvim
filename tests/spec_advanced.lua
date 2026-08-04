@@ -161,6 +161,10 @@ end
 function badparam()
     param("late", { "x" })
 end
+function stderr_stream()
+    -- the marker is built at runtime so the echoed `$ cmd` header can't match it
+    sh({ "sh", "-c", "echo err-lin''e 1>&2" })
+end
 function twostep()
     sh({ "sleep", "0.15" })
     sh({ "printf", "second-half" })
@@ -350,6 +354,15 @@ t.test("a cmd value invoked as a task streams instead of capturing", function()
         local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
         return text:find("from-cmd", 1, true) ~= nil
     end, 10), "cmd output never reached the buffer")
+end)
+
+t.test("sh() streams stderr into the buffer too (pty covers stdout only)", function()
+    run("stderr_stream")
+    local buf = assert(term.buf("stderr_stream"), "task produced no output buffer")
+    t.ok(vim.wait(2000, function()
+        local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+        return text:find("err-line", 1, true) ~= nil
+    end, 10), "stderr output never reached the buffer")
 end)
 
 -- --- terminal buffer placement ----------------------------------------------
