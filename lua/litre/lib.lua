@@ -68,6 +68,16 @@ function M.sh(c, opts)
                 end)
             end
         end,
+        -- pty connects stdin/stdout only; stderr stays a plain pipe (measured:
+        -- ya's build chatter all goes there). Stream it into the same buffer,
+        -- converting bare \n to \r\n since it never went through the pty.
+        stderr = function(_, data)
+            if data then
+                vim.schedule(function()
+                    term.send(chan, (data:gsub("\r?\n", "\r\n")))
+                end)
+            end
+        end,
     }, function(res)
         vim.schedule(function()
             term.send(chan, ("\27[1m[exit %d]\27[0m\r\n"):format(res.code))
