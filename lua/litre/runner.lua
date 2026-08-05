@@ -15,7 +15,7 @@
 ---@field file string path of the defining .litre.lua
 ---@field co? thread
 ---@field chan? integer terminal channel of this run's output buffer
----@field proc? { kill: fun(self, signal: string|integer) } process this run waits on (vim.system handle)
+---@field proc? { kill: fun(self, signal: string|integer) } process this run waits on (vim.system handle or sh's pty-job wrapper)
 ---@field killed? boolean set by M.kill; sh/out turn the exit into "interrupted"
 
 local M = {}

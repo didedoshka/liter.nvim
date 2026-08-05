@@ -45,6 +45,14 @@ local function resolve_dir(ctx, opts)
     return vim.fs.joinpath(ctx.dir, d)
 end
 
+-- sh runs the command on a real pty via jobstart: the program sees a tty on
+-- every fd (stderr is merged into the pty), so ya/cmake/git color and draw
+-- progress bars as in a terminal. vim.system cannot do this -- it has no pty
+-- support at all, any `pty = true` is silently ignored and every fd is a
+-- plain pipe (measured; why v2 streamed monochrome).
+-- opts.stdin is the exception and takes a vim.system pipe path: a pty cannot
+-- deliver EOF (a stdin-fed `wc -l` hangs forever, measured) and echoes the
+-- fed input back into the output. Filters get pipes; terminals get the pty.
 function M.sh(c, opts)
     opts = opts or {}
     local ctx = runner.ctx("sh")
@@ -56,39 +64,81 @@ function M.sh(c, opts)
     end
     local chan = ctx.chan
     term.send(chan, ("\27[1m$ %s\27[0m  [%s]\r\n"):format(display(c), vim.fn.fnamemodify(dir, ":~")))
-    local ok, proc = pcall(vim.system, argv(c), {
-        cwd = dir,
-        env = opts.env,
-        stdin = opts.stdin,
-        pty = true,
-        stdout = function(_, data)
-            if data then
-                vim.schedule(function()
-                    term.send(chan, data)
-                end)
-            end
-        end,
-        -- pty connects stdin/stdout only; stderr stays a plain pipe (measured:
-        -- ya's build chatter all goes there). Stream it into the same buffer,
-        -- converting bare \n to \r\n since it never went through the pty.
-        stderr = function(_, data)
-            if data then
-                vim.schedule(function()
-                    term.send(chan, (data:gsub("\r?\n", "\r\n")))
-                end)
-            end
-        end,
-    }, function(res)
-        vim.schedule(function()
-            term.send(chan, ("\27[1m[exit %d]\27[0m\r\n"):format(res.code))
-            runner.resume(ctx, res.code)
-        end)
-    end)
-    if not ok then
-        -- spawn failure (no such binary, bad dir): vim.system throws sync
-        runner.abort(("cannot run %s: %s"):format(display(c), proc))
+    local function finish(code)
+        term.send(chan, ("\27[1m[exit %d]\27[0m\r\n"):format(code))
+        runner.resume(ctx, code)
     end
-    ctx.proc = proc
+    if opts.stdin then
+        local ok, proc = pcall(vim.system, argv(c), {
+            cwd = dir,
+            env = opts.env,
+            stdin = opts.stdin,
+            -- pipes never went through a pty: convert bare \n for the terminal
+            stdout = function(_, data)
+                if data then
+                    vim.schedule(function()
+                        term.send(chan, (data:gsub("\r?\n", "\r\n")))
+                    end)
+                end
+            end,
+            stderr = function(_, data)
+                if data then
+                    vim.schedule(function()
+                        term.send(chan, (data:gsub("\r?\n", "\r\n")))
+                    end)
+                end
+            end,
+        }, function(res)
+            vim.schedule(function()
+                finish(res.code)
+            end)
+        end)
+        if not ok then
+            -- spawn failure (no such binary, bad dir): vim.system throws sync
+            runner.abort(("cannot run %s: %s"):format(display(c), proc))
+        end
+        ctx.proc = proc
+    else
+        local win = vim.fn.win_findbuf(term.buf(ctx.id))[1]
+        local ok, job = pcall(vim.fn.jobstart, argv(c), {
+            cwd = dir,
+            env = opts.env,
+            pty = true,
+            -- size the pty to the window so progress bars fit
+            width = win and vim.api.nvim_win_get_width(win) or 80,
+            height = win and vim.api.nvim_win_get_height(win) or 24,
+            -- data is the raw stream split on \n; concat restores it (\r kept)
+            on_stdout = function(_, data)
+                term.send(chan, table.concat(data, "\n"))
+            end,
+            on_exit = function(_, code)
+                finish(code)
+            end,
+        })
+        if not ok then
+            -- spawn failure (no such binary, bad dir): jobstart throws sync
+            runner.abort(("cannot run %s: %s"):format(display(c), job))
+        end
+        local pid = vim.fn.jobpid(job)
+        local started = vim.uv.now()
+        ctx.proc = {
+            -- signalling a pty job before its fork/exec completes can hit a
+            -- forked child still wearing nvim's signal handlers and take the
+            -- whole editor down (measured on 0.13-dev, ~50% of immediate
+            -- kills; jobstop races identically) -- so a kill inside the
+            -- first 200ms is deferred past that window
+            kill = function(_, sig)
+                local grace = 200 - (vim.uv.now() - started)
+                if grace > 0 then
+                    vim.defer_fn(function()
+                        pcall(vim.uv.kill, pid, sig)
+                    end, grace)
+                else
+                    vim.uv.kill(pid, sig)
+                end
+            end,
+        }
+    end
     local code = coroutine.yield()
     ctx.proc = nil
     if ctx.killed then

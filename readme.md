@@ -58,7 +58,8 @@ resolves to the nearest one.
 - `opts.env` adds environment variables for that command.
 - `opts.stdin` (string or list of lines) feeds the command's standard input --
   the anticipated-prompt pattern: ask with `pick`/`input` first, pass the
-  answer here.
+  answer here. A stdin-fed command runs on plain pipes instead of the pty (a
+  pty cannot deliver EOF), so it sees no tty and prints no color.
 - Nonzero exit **raises**: the task stops with a notification, so
   `build(); run()` is a correct chain. Opt out per call with
   `{ check = false }` to get the code back instead.
@@ -77,8 +78,10 @@ resolves to the nearest one.
 
 ## Output buffers
 
-`sh` streams into a dead terminal buffer named `litre://<task id>` -- a pty job
-renders colors and progress, but no shell sits behind it. Re-running a task
+`sh` streams into a dead terminal buffer named `litre://<task id>` -- the
+command runs on a real pty sized to the window, with stderr merged in, so
+programs see a tty on every fd and color and progress-bar as in a terminal --
+but no shell sits behind the buffer. Re-running a task
 replaces the buffer under the same name; windows showing the old run switch to
 the new one, otherwise it opens in the current window like any buffer (no
 floats, no owned windows). Deleting the buffer mid-run is fine: the task's
