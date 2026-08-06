@@ -106,18 +106,23 @@ goes through the buffer -- unsaved changes survive -- and is written.
 | `:LitreConfig` | edit the innermost `.litre.lua` (path at cwd if none exists) |
 | `:LitreCmake <dir>` | generate build/run/debug tasks from cmake's target list (Makefile generator only) |
 
-Map a key to `require("litre").layer()`. Layer verbs (reserved; `map()` to them
-warns and is ignored):
+Map a key to `require("litre").layer()`: it opens the fzf-pin picker over every
+task, `map()`ped keys shown as `[k]`, running tasks marked. Keys work inside the
+picker (reserved; `map()` to them warns and is ignored):
 
 | key | does |
 | --- | --- |
-| `x` | task picker (mapped keys shown as `[k]`, running tasks marked) |
 | `v` | param picker → value picker → "new value..." |
 | `c` | edit config |
 | `o` | show the last task's output buffer in the current window |
 | `r` | re-run the last task |
 | `k` | kill a running task (picker when several run; `k` again SIGKILLs) |
-| anything else | the task `map()`ped to it |
+| `i` | fzf-pin's search key: unbinds the chars, type to filter, enter runs |
+| other lowercase | the task `map()`ped to it (free chars warn) |
+
+The picker opens even with no tasks discovered, so `c` can create the first
+`.litre.lua`. The layer source is `require("litre").source` (an
+[fzf-pin](../fzf-pin.nvim) source; that repo's readme has the contract).
 
 ## Setup
 

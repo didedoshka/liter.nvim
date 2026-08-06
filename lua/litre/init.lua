@@ -4,10 +4,11 @@
 --   :LitreCmake <dir>   generate build/run/debug tasks for a cmake build dir
 --
 -- The layer -- map one key (x in didedoshka's config) to require("litre").layer():
---   <layer>x  task picker      <layer>v  param picker
---   <layer>c  edit config      <layer>o  show last task's output buffer
---   <layer>r  re-run last      <layer>k  kill a running task
---   <layer><key>  run the task map()ped to <key>
+-- opens the fzf-pin picker over every task, map()ped chars shown as [k].
+-- A map()ped char runs its task immediately; verbs run in the picker too
+--   v  param picker    c  edit config    o  show last task's output buffer
+--   r  re-run last     k  kill a running task
+-- `i` drops into fuzzy search, enter runs the selection.
 local M = {}
 
 local verbs -- filled below; load_tasks() strips map() keys that collide with them
@@ -15,7 +16,8 @@ local verbs -- filled below; load_tasks() strips map() keys that collide with th
 local function load_tasks()
     local d = require("litre.discover").load()
     for k in pairs(d.maps) do
-        if verbs[k] then
+        -- "i" belongs to fzf-pin: it re-enables typing inside the picker
+        if verbs[k] or k == "i" then
             vim.notify(("litre: key %q is reserved by the layer; map() ignored"):format(k),
                 vim.log.levels.WARN)
             d.maps[k] = nil
@@ -32,32 +34,39 @@ local function short(p)
     return vim.fn.fnamemodify(p, ":~")
 end
 
-function M.pick_task()
-    local d = load_tasks()
-    if #d.tasks == 0 then
-        vim.notify("litre: no .litre.lua tasks upward of " .. short(d.cwd), vim.log.levels.WARN)
-        return
-    end
-    local key_of = {}
-    for k, t in pairs(d.maps) do
-        key_of[t.id] = k
-    end
-    local live = {}
-    for _, t in ipairs(require("litre.runner").running_tasks()) do
-        live[t.id] = true
-    end
-    vim.ui.select(d.tasks, {
-        prompt = "litre task",
-        format_item = function(t)
-            local key = key_of[t.id] and ("[%s] "):format(key_of[t.id]) or "    "
-            return ("%s%-28s %s%s"):format(key, t.id, short(t.dir),
-                live[t.id] and "  (running)" or "")
-        end,
-    }, function(t)
-        if t then
-            run(t)
+-- The task layer as an fzf-pin source. Tasks are not pinnable from inside the
+-- picker (keys are declared via map() in .litre.lua), so there is no pin().
+M.source = {
+    prompt = "litre> ",
+    list = function()
+        local d = load_tasks()
+        local key_of = {}
+        for k, t in pairs(d.maps) do
+            key_of[t.id] = k
         end
-    end)
+        local live = {}
+        for _, t in ipairs(require("litre.runner").running_tasks()) do
+            live[t.id] = true
+        end
+        local items = {}
+        for _, t in ipairs(d.tasks) do
+            table.insert(items, {
+                label = ("%-28s %s%s"):format(t.id, short(t.dir),
+                    live[t.id] and "  (running)" or ""),
+                char = key_of[t.id],
+                data = t,
+            })
+        end
+        return items
+    end,
+    activate = function(item)
+        run(item.data)
+    end,
+    -- verbs attached below, once they exist
+}
+
+function M.layer()
+    require("fzf-pin").pick(M.source)
 end
 
 local NEW = "  new value..."
@@ -162,37 +171,20 @@ function M.kill()
 end
 
 verbs = {
-    x = M.pick_task,
     v = M.pick_param,
     c = M.edit_config,
     o = M.show_output,
     r = M.rerun,
     k = M.kill,
 }
-
-function M.layer()
-    local ok, key = pcall(vim.fn.getcharstr)
-    if not ok or key == "" or key == "\27" then
-        return
-    end
-    if verbs[key] then
-        verbs[key]()
-        return
-    end
-    local task = load_tasks().maps[key]
-    if task then
-        run(task)
-        return
-    end
-    vim.notify("litre: nothing on " .. vim.fn.keytrans(key), vim.log.levels.WARN)
-end
+M.source.verbs = verbs
 
 function M.setup(opts)
     require("litre.config").setup(opts)
 
     vim.api.nvim_create_user_command("Litre", function(o)
         if o.args == "" then
-            M.pick_task()
+            M.layer()
             return
         end
         -- tasks are sorted innermost first, so a bare name hits the nearest one

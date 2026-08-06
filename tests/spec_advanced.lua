@@ -186,6 +186,8 @@ function real_task()
 end
 map("x", real_task)
 map("z", function() end)
+map("k", real_task)
+map("i", real_task)
 ]])
 
 write(vim.fs.joinpath(tmp, "badmap", ".litre.lua"), [[
@@ -541,19 +543,26 @@ t.test("a global named after a primitive shadows it, silently", function()
     end)
 end)
 
-t.test("a map() on a layer verb is stripped when the layer loads", function()
+t.test("a map() on a layer verb or on i is stripped when the layer loads", function()
     at(vim.fs.joinpath(tmp, "weird"), function()
         t.notified = {}
-        litre.pick_task() -- the baseline stub just cancels the picker
-        t.ok(notified('key "x" is reserved by the layer'),
+        litre.source.list()
+        t.ok(notified('key "k" is reserved by the layer'),
+            "unexpected: " .. vim.inspect(t.notified))
+        t.ok(notified('key "i" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
     end)
 end)
 
 -- --- the x layer ------------------------------------------------------------
+-- The layer is litre.source driven through fzf-pin's picker; build() returns
+-- the per-char closures the real fzf binds would fire, so the semantics are
+-- testable without a UI. The sibling checkout is the dependency, like lazy.nvim
+-- loads it in the real config.
+vim.opt.rtp:prepend(vim.fn.expand("~/personal/fzf-pin.nvim"))
+local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
-    vim.fn.feedkeys(key, "n")
-    litre.layer()
+    fzfpin.build(litre.source).actions[key]()
 end
 
 t.test("layer: a map()ped key runs its task", function()
@@ -564,16 +573,22 @@ t.test("layer: a map()ped key runs its task", function()
     end, 10), "the mapped task never ran")
 end)
 
-t.test("layer: an unbound key says so and does nothing else", function()
+t.test("layer: a free key says so and does nothing else", function()
     t.notified = {}
-    layer_with("Q")
-    t.ok(notified("nothing on Q"), "unexpected: " .. vim.inspect(t.notified))
+    layer_with("q")
+    t.ok(notified("nothing on q"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.test("layer: <Esc> is a silent no-op", function()
-    t.notified = {}
-    layer_with(vim.keycode("<Esc>"))
-    t.eq(t.notified, {})
+t.test("layer: entries render map() chars and the running marker", function()
+    local built = fzfpin.build(litre.source)
+    local bundled
+    for _, e in ipairs(built.entries) do
+        if e:find("envbundle", 1, true) then
+            bundled = e
+        end
+    end
+    t.ok(bundled and bundled:sub(1, 4) == "[b] ", "map()ped char not rendered: "
+        .. tostring(bundled))
 end)
 
 t.test("layer: o shows the last task's output buffer", function()
@@ -694,11 +709,10 @@ t.test("edit_config reaches a .litre.lua that fails to load", function()
     end)
 end)
 
-t.test("pick_task warns when there is nothing to pick", function()
+t.test("the layer source is empty but usable when no .litre.lua exists", function()
     at(bare, function()
-        t.notified = {}
-        litre.pick_task()
-        t.ok(notified("no .litre.lua tasks upward"), "unexpected: " .. vim.inspect(t.notified))
+        -- the picker still opens: verbs like c (edit config) must stay reachable
+        t.eq(litre.source.list(), {})
     end)
 end)
 

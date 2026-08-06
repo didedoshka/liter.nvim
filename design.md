@@ -241,12 +241,14 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
   joining `<bs>` (debugmaster) and `s` (arrow) as layers. v1's fixed
   `<bs>s`/`<bs>x`/`<bs>p` (select / compile+run / compile+debug) workflow was
   not extensible — constant target-switching; per-task shortcuts replace it.
-- Open: who assigns keys to tasks — in `.litre.lua` itself (imperative
-  `litre.map("c", build)`, per-project, sits naturally next to the definition) or
-  in the nvim config by task name? And what the fixed verbs on the layer are
-  (picker, param selection, open last output buffer, re-run last task, …).
-  Collision/discoverability story unresolved (no popups — fzf-lua as the
-  lister, presumably).
+- Keys are assigned in `.litre.lua` itself (`map("c", build)`, per-project, next
+  to the definition); verbs settled as `v/c/o/r/k` (decided with v2).
+- Discoverability (decided 2026-08-06): the blind `getcharstr` layer is gone.
+  `x` opens fzf-pin's picker (shared machinery, `~/personal/fzf-pin.nvim`) with
+  every task listed and the map()ped chars live as binds — same keystrokes as
+  before, but the state is visible. `i` is reserved on top of the verbs: it is
+  fzf-pin's enter-search key. litre gained fzf-lua/fzf-pin as runtime deps of
+  `layer()`; everything else still runs without them.
 
 ## v1 inventory — what carries over
 
