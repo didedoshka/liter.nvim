@@ -100,12 +100,16 @@ function M.sh(c, opts)
         ctx.proc = proc
     else
         local win = vim.fn.win_findbuf(term.buf(ctx.id))[1]
+        -- size the pty to the window's *text area*: the emulator is textoff
+        -- columns narrower than the window (number column), and a progress
+        -- line padded to full window width wraps there, so \r overwrites only
+        -- the wrapped tail and every repaint stacks a new line (measured)
         local ok, job = pcall(vim.fn.jobstart, argv(c), {
             cwd = dir,
             env = opts.env,
             pty = true,
-            -- size the pty to the window so progress bars fit
-            width = win and vim.api.nvim_win_get_width(win) or 80,
+            width = win and (vim.api.nvim_win_get_width(win) - vim.fn.getwininfo(win)[1].textoff)
+                or 80,
             height = win and vim.api.nvim_win_get_height(win) or 24,
             -- data is the raw stream split on \n; concat restores it (\r kept)
             on_stdout = function(_, data)
