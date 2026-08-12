@@ -242,7 +242,8 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
   `<bs>s`/`<bs>x`/`<bs>p` (select / compile+run / compile+debug) workflow was
   not extensible — constant target-switching; per-task shortcuts replace it.
 - Keys are assigned in `.litre.lua` itself (`map("c", build)`, per-project, next
-  to the definition); verbs settled as `v/c/o/r/k` (decided with v2).
+  to the definition); verbs settled as `v/c/o/r` (decided with v2; `k` was a
+  verb until 2026-08-12, see decision 15).
 - Discoverability (decided 2026-08-06): the blind `getcharstr` layer is gone.
   `x` opens fzf-pin's picker (shared machinery, `~/personal/fzf-pin.nvim`) with
   every task listed and the map()ped chars live as binds — same keystrokes as
@@ -369,6 +370,15 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     pattern matching, and symlinked paths never matched). `:LitreCmake`
     filters the `all` pseudo-target — its old filter pattern kept the
     parenthetical from the help line and could never match the captured name.
+
+15. **Kill moved to ctrl-c (2026-08-12):** the layer verb `k` never became a
+    reflex — the terminal habit is ctrl-c *in the window showing the output*,
+    not "open a picker, press k". The output buffer is a dead terminal with no
+    stdin, so a buffer-local normal-mode `<C-c>` (set in `term.open`) routes
+    to `runner.kill` of the buffer's own task: no picker needed even with
+    several tasks running, since each buffer knows its task. Escalation kept
+    (second ctrl-c SIGKILLs); prompt-suspended tasks still answer "cancel the
+    prompt instead". `k` is a free map() key again.
 
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-

@@ -152,6 +152,9 @@ end
 function busy()
     out({ "sleep", "0.4" })
 end
+function hang()
+    sh({ "sleep", "30" })
+end
 function dbgfn()
     debug("fn", { program = "bin/app", dir = "deep" })
 end
@@ -186,7 +189,7 @@ function real_task()
 end
 map("x", real_task)
 map("z", function() end)
-map("k", real_task)
+map("r", real_task)
 map("i", real_task)
 ]])
 
@@ -547,7 +550,7 @@ t.test("a map() on a layer verb or on i is stripped when the layer loads", funct
     at(vim.fs.joinpath(tmp, "weird"), function()
         t.notified = {}
         litre.source.list()
-        t.ok(notified('key "k" is reserved by the layer'),
+        t.ok(notified('key "r" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
         t.ok(notified('key "i" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
@@ -607,23 +610,35 @@ t.test("layer: r re-runs the last task", function()
     end, 10), "re-run did not happen")
 end)
 
-t.test("layer: k with nothing running says so", function()
-    t.ok(wait_idle(), "a task from an earlier test is still running")
-    t.notified = {}
-    layer_with("k")
-    t.ok(notified("no task is running"), "unexpected: " .. vim.inspect(t.notified))
-end)
+-- press the buffer-local <C-c> map the way the user would
+local function ctrl_c(buf)
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+        if vim.keycode(m.lhs) == vim.keycode("<C-c>") and m.callback then
+            m.callback()
+            return
+        end
+    end
+    error("no <C-c> map on buffer " .. buf)
+end
 
-t.test("layer: k kills the single running task without a picker", function()
-    local task = assert(find(discover.load(), "busy"))
+t.test("ctrl-c in the output buffer kills the buffer's task", function()
+    t.ok(wait_idle(), "a task from an earlier test is still running")
+    local task = assert(find(discover.load(), "hang"))
     runner.run(task)
     t.ok(vim.wait(2000, function()
         return task.proc ~= nil
-    end, 5), "busy never started its process")
+    end, 5), "hang never started its process")
     t.notified = {}
-    layer_with("k")
+    ctrl_c(assert(term.buf("hang"), "hang has no output buffer"))
     t.ok(wait_done(task), "the task was not killed")
     t.ok(notified("interrupted"), "unexpected: " .. vim.inspect(t.notified))
+end)
+
+t.test("ctrl-c on a finished run's buffer says the task is not running", function()
+    run("streamer")
+    t.notified = {}
+    ctrl_c(assert(term.buf("streamer"), "streamer has no output buffer"))
+    t.ok(notified("streamer is not running"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
 t.test("kill on a task waiting in a prompt explains itself instead", function()

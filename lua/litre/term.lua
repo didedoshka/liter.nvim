@@ -33,6 +33,19 @@ function M.open(id)
         vim.api.nvim_buf_delete(old, { force = true })
     end
     vim.api.nvim_buf_set_name(buf, "litre://" .. id)
+    -- ctrl-c interrupts the buffer's task, the reflex from real terminals --
+    -- there is no stdin behind a dead terminal to deliver it to the process,
+    -- so it goes through runner.kill (a second ctrl-c escalates to SIGKILL)
+    vim.keymap.set("n", "<C-c>", function()
+        local runner = require("litre.runner")
+        for _, task in ipairs(runner.running_tasks()) do
+            if task.id == id then
+                runner.kill(task)
+                return
+            end
+        end
+        vim.notify("litre: " .. id .. " is not running", vim.log.levels.WARN)
+    end, { buffer = buf, desc = "litre: interrupt this task" })
     bufs[id] = buf
     return chan, buf
 end

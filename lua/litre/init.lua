@@ -7,7 +7,7 @@
 -- opens the fzf-pin picker over every task, map()ped chars shown as [k].
 -- A map()ped char runs its task immediately; verbs run in the picker too
 --   v  param picker    c  edit config    o  show last task's output buffer
---   r  re-run last     k  kill a running task
+--   r  re-run last
 -- `i` drops into fuzzy search, enter runs the selection.
 local M = {}
 
@@ -147,35 +147,11 @@ function M.rerun()
     vim.notify("litre: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
 end
 
-function M.kill()
-    local runner = require("litre.runner")
-    local tasks = runner.running_tasks()
-    if #tasks == 0 then
-        vim.notify("litre: no task is running", vim.log.levels.WARN)
-        return
-    end
-    if #tasks == 1 then
-        runner.kill(tasks[1])
-        return
-    end
-    vim.ui.select(tasks, {
-        prompt = "litre kill",
-        format_item = function(t)
-            return t.id
-        end,
-    }, function(t)
-        if t then
-            runner.kill(t)
-        end
-    end)
-end
-
 verbs = {
     v = M.pick_param,
     c = M.edit_config,
     o = M.show_output,
     r = M.rerun,
-    k = M.kill,
 }
 M.source.verbs = verbs
 

@@ -68,10 +68,10 @@ resolves to the nearest one.
   from outside litre. Calling a primitive outside a task is an error, including
   at file top level -- top level is for definitions, shell work goes in tasks.
 - A task already running is not started twice; different tasks run in
-  parallel. The layer's `k` kills a running task: its current `sh`/`out`
-  process gets SIGTERM and the task aborts with an "interrupted" notification.
-  A task waiting in `pick`/`input` has no process -- cancel the prompt
-  instead.
+  parallel. `<C-c>` (normal mode) in a task's `litre://` buffer kills it: its
+  current `sh`/`out` process gets SIGTERM and the task aborts with an
+  "interrupted" notification; a second `<C-c>` SIGKILLs. A task waiting in
+  `pick`/`input` has no process -- cancel the prompt instead.
 - Quitting nvim SIGTERMs every running task's process (vim.system children
   would otherwise outlive nvim -- measured), so `:restart` never leaks a
   build.
@@ -85,9 +85,10 @@ but no shell sits behind the buffer. Re-running a task
 replaces the buffer under the same name; windows showing the old run switch to
 the new one, otherwise it opens in the current window like any buffer (no
 floats, no owned windows). Deleting the buffer mid-run is fine: the task's
-next `sh` opens a fresh one. Programs that want stdin mid-run should be
-anticipated with `pick`/`input` in the task; genuinely interactive work is
-what `:terminal` is for.
+next `sh` opens a fresh one. `<C-c>` in the buffer (normal mode) kills the
+running task, as it would in a real terminal. Programs that want stdin mid-run
+should be anticipated with `pick`/`input` in the task; genuinely interactive
+work is what `:terminal` is for.
 
 ## Params
 
@@ -116,7 +117,6 @@ picker (reserved; `map()` to them warns and is ignored):
 | `c` | edit config |
 | `o` | show the last task's output buffer in the current window |
 | `r` | re-run the last task |
-| `k` | kill a running task (picker when several run; `k` again SIGKILLs) |
 | `i` | fzf-pin's search key: unbinds the chars, type to filter, enter runs |
 | other lowercase | the task `map()`ped to it (free chars warn) |
 

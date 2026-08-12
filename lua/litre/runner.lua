@@ -50,7 +50,7 @@ end
 ---@param task litre.Task
 function M.run(task)
     if running[task.id] then
-        vim.notify("litre: " .. task.id .. " is already running -- k on the layer kills it",
+        vim.notify("litre: " .. task.id .. " is already running -- ctrl-c in its buffer kills it",
             vim.log.levels.WARN)
         return
     end
@@ -72,7 +72,7 @@ function M.run(task)
     M.resume(task)
 end
 
----Running tasks, stable order (for the kill verb's picker).
+---Running tasks, stable order (the layer's running markers, ctrl-c's lookup).
 ---@return litre.Task[]
 function M.running_tasks()
     local list = {}
