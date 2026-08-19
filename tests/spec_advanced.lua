@@ -565,7 +565,9 @@ end)
 vim.opt.rtp:prepend(vim.fn.expand("~/personal/fzf-pin.nvim"))
 local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
-    fzfpin.build(litre.source).actions[key]()
+    local built = fzfpin.build(litre.source)
+    built.entries() -- populates the char lookup, as fzf listing entries would
+    built.actions[key]()
 end
 
 t.test("layer: a map()ped key runs its task", function()
@@ -585,7 +587,7 @@ end)
 t.test("layer: entries render map() chars and the running marker", function()
     local built = fzfpin.build(litre.source)
     local bundled
-    for _, e in ipairs(built.entries) do
+    for _, e in ipairs(built.entries()) do
         if e:find("envbundle", 1, true) then
             bundled = e
         end

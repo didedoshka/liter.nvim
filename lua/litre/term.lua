@@ -28,6 +28,13 @@ function M.open(id)
         vim.api.nvim_win_set_buf(w, buf)
         -- terminal buffers follow output only while the cursor sits at the end
         pcall(vim.api.nvim_win_set_cursor, w, { vim.api.nvim_buf_line_count(buf), 0 })
+        -- a run triggered from the task picker's key fires while its fzf
+        -- terminal still holds terminal mode, and terminal mode survives a
+        -- terminal-to-terminal buffer swap; there is no stdin behind a dead
+        -- terminal, so drop back to normal mode
+        if w == vim.api.nvim_get_current_win() then
+            vim.cmd.stopinsert()
+        end
     end
     if old and vim.api.nvim_buf_is_valid(old) then
         vim.api.nvim_buf_delete(old, { force = true })

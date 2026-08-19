@@ -129,6 +129,9 @@ function M.show_output()
         return
     end
     vim.api.nvim_win_set_buf(0, buf)
+    -- same terminal-to-terminal mode leak as term.open: `o` fires while the
+    -- picker's fzf terminal still holds terminal mode
+    vim.cmd.stopinsert()
 end
 
 function M.rerun()
