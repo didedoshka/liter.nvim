@@ -21,9 +21,33 @@ file="$(jq -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev
 
 out="$("$repo/tests/run.sh" 2>&1)" && exit 0
 
-{
-    echo "tests/run.sh failed (baseline for this repo is green):"
-    sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r/\n/g' <<<"$out" \
+clean() {
+    sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r/\n/g' <<<"$1" \
         | grep -vE '^\s*$|^\s*Initializing|^\s*[>=]+ *[0-9]+/[0-9]+'
+}
+
+# Distinguish "this edit broke it" from "it was already broken": run the same
+# suite at HEAD in a throwaway worktree and compare the failing test names.
+# Measured: an fzf-pin refactor once broke this repo's spec, and the next
+# unrelated litre edit got blamed for it.
+fails() { grep -E '^\s*FAIL' <<<"$1" | sed 's/^\s*//' | sort -u; }
+now_fails="$(fails "$(clean "$out")")"
+head_fails=""
+wt="$(mktemp -d)"
+if [[ -n "$now_fails" ]] && git -C "$repo" worktree add --detach --quiet "$wt" HEAD 2>/dev/null; then
+    head_out="$("$wt/tests/run.sh" 2>&1)" || true
+    head_fails="$(fails "$(clean "$head_out")")"
+    git -C "$repo" worktree remove --force "$wt" 2>/dev/null
+fi
+rm -rf "$wt"
+
+if [[ -n "$now_fails" && "$now_fails" == "$head_fails" ]]; then
+    msg="tests/run.sh failed, but the same tests already fail at HEAD -- pre-existing breakage, not this edit. Find what broke them before piling more changes on:"
+else
+    msg="tests/run.sh failed (these failures are new vs HEAD):"
+fi
+{
+    echo "$msg"
+    clean "$out"
 } >&2
 exit 2
