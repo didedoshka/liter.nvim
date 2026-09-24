@@ -673,10 +673,10 @@ t.test("kill on a task waiting in a prompt explains itself instead", function()
 end)
 
 -- --- user commands ----------------------------------------------------------
-t.test("setup() registers the three commands", function()
+t.test("setup() registers the two commands", function()
     litre.setup({ shell = "sh" })
     local cmds = vim.api.nvim_get_commands({})
-    for _, name in ipairs({ "Litre", "LitreConfig", "LitreCmake" }) do
+    for _, name in ipairs({ "Litre", "LitreConfig" }) do
         t.ok(cmds[name], name .. " not registered")
     end
 end)
@@ -787,6 +787,87 @@ t.test("pick_param's new-value path writes the source and selects it", function(
         "the option was not written back to the source")
     t.eq(discover.load().params[1].options, { "-O2", "-O3", "-Og" })
     state.set(file, "level", "-O2")
+end)
+
+t.test("a function-valued param runs as a task under V and persists the pick", function()
+    local dyn = vim.fs.joinpath(tmp, "dyn")
+    local file = vim.fs.joinpath(dyn, ".litre.lua")
+    write(file, [[
+local l = require("litre")
+local which = l.param("which", function()
+    return vim.split(l.out({ "printf", "one\nthree\ntwo" }), "\n")
+end)
+function report()
+    vim.g.x_which = tostring(which)
+end
+]])
+    at(dyn, function()
+        run("report")
+        t.eq(vim.g.x_which, "nil", "an unchosen function param must read nil")
+        local step, seen = 0, nil
+        ---@diagnostic disable-next-line: duplicate-set-field
+        vim.ui.select = function(items, _opts, on_choice)
+            step = step + 1
+            if step == 1 then
+                on_choice(items[1])
+            else
+                seen = items
+                on_choice(items[2])
+            end
+        end
+        litre.pick_param()
+        -- the list function yields on out(): the value picker opens later
+        t.ok(wait_idle(), "the V task did not finish")
+        vim.ui.select = ui_select
+        t.eq(seen, { "one", "three", "two" }, "the value picker did not get the function's list")
+        t.eq(state.get(file, "which"), "three")
+        t.eq(runner.last.id, "report", "choosing a value must not become R's target")
+        run("report")
+        t.eq(vim.g.x_which, "three")
+    end)
+end)
+
+-- --- cmake helpers ----------------------------------------------------------
+-- No cmake in the offline tier: a hand-written file-API reply (the shape
+-- cmake 3.28 writes, measured) stands in for a configured build dir.
+t.test("cmake.targets/exe read the file-API reply", function()
+    local proj = vim.fs.joinpath(tmp, "cm")
+    local reply = vim.fs.joinpath(proj, "bld", ".cmake", "api", "v1", "reply")
+    local function json(name, obj)
+        write(vim.fs.joinpath(reply, name), vim.json.encode(obj))
+    end
+    json("index-2026-01-01T00-00-00-0000.json", { reply = { ["codemodel-v2"] = { jsonFile = "old.json" } } })
+    json("index-2026-09-24T00-00-00-0000.json", { reply = { ["codemodel-v2"] = { jsonFile = "cm.json" } } })
+    json("cm.json", { configurations = { { targets = {
+        { name = "tool", jsonFile = "t-tool.json" },
+        { name = "lib", jsonFile = "t-lib.json" },
+        { name = "main", jsonFile = "t-main.json" },
+    } } } })
+    json("t-tool.json", { name = "tool", type = "EXECUTABLE", artifacts = { { path = "sub/tool" } } })
+    json("t-lib.json", { name = "lib", type = "STATIC_LIBRARY", artifacts = { { path = "liblib.a" } } })
+    json("t-main.json", { name = "main", type = "EXECUTABLE", artifacts = { { path = "main" } } })
+    write(vim.fs.joinpath(proj, ".litre.lua"), [[
+local cm = require("litre.cmake")
+function probe()
+    vim.g.x_cm = { targets = cm.targets("bld"), tool = cm.exe("bld", "tool") }
+end
+function missing()
+    cm.exe("bld", "lib")
+end
+function unset()
+    cm.exe("bld", nil)
+end
+]])
+    at(proj, function()
+        run("probe")
+        t.eq(vim.g.x_cm, { targets = { "main", "tool" }, tool = "sub/tool" })
+        t.notified = {}
+        run("missing")
+        t.ok(notified('no executable target "lib"'), vim.inspect(t.notified))
+        t.notified = {}
+        run("unset")
+        t.ok(notified("no target chosen yet"), vim.inspect(t.notified))
+    end)
 end)
 
 -- --- dap templates ----------------------------------------------------------

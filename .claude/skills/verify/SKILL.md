@@ -32,7 +32,8 @@ hand in a real nvim with the config loaded:
   stays put when visible in a split; autoscroll while streaming.
 - **`debug()`**: needs the real gdb adapter from the nvim config
   (`plugins/dap.lua`) and a real binary -- the spec only checks the merge.
-- **`:LitreCmake`**: needs a real cmake build directory.
+- **`litre.cmake`**: the spec feeds it a hand-written file-API reply; the
+  first-call configure and a real reply need a real cmake build directory.
 
 A quick real-UI smoke: `cd` to a dir with a `.litre.lua`, `:Litre`, watch the
 buffer stream. As of 2026-07-19 the whole v2 surface is spec-tested but has

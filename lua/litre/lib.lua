@@ -298,9 +298,14 @@ end
 -- first option). Selection UI and source write-back live in litre.params.
 -- Top level ONLY: a param declared inside a task would read a value but never
 -- register while discovery runs, so the picker could not see it -- a trap.
+--
+-- A function instead of a list is not called here (top level runs on every
+-- load): the V picker runs it as a task, so it may sh/out/pick like any task
+-- body, and picks from what it returns. No first option then -- nil until a
+-- value has been chosen once.
 ---@param name string
----@param options string[] a literal list: the picker's "new value..." writes into it
----@return string value the persisted selection, else options[1]
+---@param options string[]|fun(): string[] a literal list: the picker's "new value..." writes into it
+---@return string? value the persisted selection, else options[1] (nil for a function)
 function M.param(name, options)
     local discover = require("litre.discover")
     local file = discover.loading
@@ -311,6 +316,9 @@ function M.param(name, options)
     local v = state.get(file, name)
     if v ~= nil then
         return v
+    end
+    if type(options) == "function" then
+        return nil
     end
     return options[1]
 end

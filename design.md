@@ -400,6 +400,24 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     globals, so no directive line and no diagnostic filter -- a convention,
     not a rule; lowercase tasks still run (the spec pins it).
 
+18. **Function-valued params, `:LitreCmake` gone (2026-09-24):** closes open
+    q. 6. The generator (9) pasted one build/run/debug triple per target,
+    parsed `--target help`, which is Makefile-only and omitted executables
+    under Ninja (measured), and knew nothing you don't when opening the file.
+    Wanted instead: choose from the live target list. Rejected: a
+    `set_param` primitive plus a refresh task per file (a new primitive and
+    a second meaning for "change a param"). Landed: `param(name, fn)`. Top
+    level still never runs anything; `V` runs `fn` through `runner.run` as a
+    task of its own -- the coroutine is the same one that keeps `sh`/`out`/
+    `pick` blue for every task body, so the function is colourless too, and
+    ctrl-c in its buffer kills it. `runner.last` is restored around it so
+    `R` never re-runs a choice. `cmake.lua` shrinks to `targets(dir)` and
+    `exe(dir, name)` over cmake's file API: generator-agnostic, executables
+    only, real artifact paths (a subdirectory target is `sub/tool`), and a
+    plain `cmake --build` refreshes the reply once the query file exists
+    (measured), so cmake itself runs only on the first call. The config's
+    `litre_cmake` snippet is the whole per-project boilerplate.
+
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

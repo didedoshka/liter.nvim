@@ -15,7 +15,8 @@ this checkout via lazy.nvim (`~/.config/nvim/lua/plugins/litre.lua`).
 `discover.lua` file walk + sandboxed envs, `runner.lua` coroutine runner,
 `lib.lua` the .litre.lua primitives, `term.lua` `litre://` output buffers,
 `params.lua` treesitter write-back, `state.lua` persisted selections,
-`config.lua` opts (read `config.opts` at call time), `cmake.lua` `:LitreCmake`.
+`config.lua` opts (read `config.opts` at call time), `cmake.lua` file-API
+helpers for cmake projects.
 
 ## Invariants
 

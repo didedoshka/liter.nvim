@@ -52,7 +52,7 @@ exported next to lowercase helpers. A lowercase task still runs.
 | `l.env { dir=, env= }` | defaults bundle: `b.sh`/`b.out`/`b.cmd` with those opts merged in |
 | `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
 | `l.input(prompt_or_opts)` | `vim.ui.input` likewise |
-| `l.param(name, { ... })` | declare a param; returns its current value (top level only) |
+| `l.param(name, { ... })` | declare a param; returns its current value (top level only). A function instead of the list is run as a task by `V` and its result picked from |
 | `l.debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
 | `l.map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
 
@@ -109,13 +109,22 @@ back into the `.litre.lua` source (treesitter finds the literal list; computed
 lists are refused with a message). If the file is open in a buffer the edit
 goes through the buffer -- unsaved changes survive -- and is written.
 
+`l.param("name", function() ... end)` never runs the function at top level.
+`V` on that param runs it as a task of its own (`sh`/`out`/`pick` work inside,
+output streams to a `litre://` buffer as usual) and opens the value picker on
+what it returns; no "new value..." entry. Until a value has been chosen once
+the param reads `nil`. `require("litre.cmake")` is the ready-made case:
+`cm.targets(dir)` lists a build dir's executable targets through cmake's file
+API (configuring once to plant the query; any later re-configure refreshes the
+reply), `cm.exe(dir, name)` gives a target's artifact path for `Run`/`Debug`.
+Both resolve `dir` like `sh`'s `opts.dir` and only work inside a task.
+
 ## Commands & layer
 
 | command | does |
 | --- | --- |
 | `:Litre [task]` | run by id or bare name; no argument opens the picker |
 | `:LitreConfig` | edit the innermost `.litre.lua` (path at cwd if none exists) |
-| `:LitreCmake <dir>` | generate `Build_`/`Run_`/`Debug_<target>` tasks from cmake's target list (Makefile generator only; the output calls `l.`) |
 
 Map a key to `require("litre").layer()`: it opens the fzf-pin picker over every
 task, `map()`ped keys shown as `[k]`, running tasks marked. Keys work inside the

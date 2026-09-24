@@ -4,7 +4,6 @@
 -- plus the commands and the layer. Command index:
 --   :Litre [task]       run a task by id (or bare name), no arg opens the picker
 --   :LitreConfig        edit the innermost .litre.lua (path at cwd when none exists)
---   :LitreCmake <dir>   generate build/run/debug tasks for a cmake build dir
 --
 -- The layer -- map one key (x in didedoshka's config) to require("litre").layer():
 -- opens the fzf-pin picker over every task, map()ped chars shown as [k].
@@ -87,10 +86,31 @@ function M.pick_param()
     end
     local function current(p)
         local cur = state.get(p.file, p.name)
-        if cur == nil then
+        if cur == nil and type(p.options) == "table" then
             cur = p.options[1]
         end
-        return cur
+        return cur or "?"
+    end
+    -- a function-valued list runs as a task of its own: the runner gives it
+    -- the coroutine that lets it sh/out/pick, and its output a litre:// buffer
+    local function choose_computed(p)
+        local runner = require("litre.runner")
+        local last = runner.last
+        runner.run({
+            id = "V " .. p.name,
+            name = p.name,
+            file = p.file,
+            dir = vim.fs.dirname(p.file),
+            fn = function()
+                local v = lib.pick(p.options(), { prompt = p.name })
+                if v ~= nil then
+                    state.set(p.file, p.name, v)
+                end
+            end,
+        })
+        -- run() records every task as the R verb's target; choosing a value
+        -- is not something to re-run
+        runner.last = last
     end
     vim.ui.select(d.params, {
         prompt = "litre param",
@@ -99,6 +119,10 @@ function M.pick_param()
         end,
     }, function(p)
         if not p then
+            return
+        end
+        if type(p.options) == "function" then
+            choose_computed(p)
             return
         end
         local options = vim.deepcopy(p.options)
@@ -195,10 +219,6 @@ function M.setup(opts)
     })
 
     vim.api.nvim_create_user_command("LitreConfig", M.edit_config, {})
-
-    vim.api.nvim_create_user_command("LitreCmake", function(o)
-        require("litre.cmake").generate(o.fargs[1])
-    end, { nargs = 1, complete = "dir" })
 end
 
 return M
