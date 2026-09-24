@@ -1,4 +1,7 @@
--- Public surface. Command index:
+-- Public surface: the .litre.lua API (`local l = require("litre")` at the top
+-- of every file gives l.sh, l.out, l.cmd, l.env, l.pick, l.input, l.param,
+-- l.debug, l.map -- a module, not injected globals, so lua-ls types the calls)
+-- plus the commands and the layer. Command index:
 --   :Litre [task]       run a task by id (or bare name), no arg opens the picker
 --   :LitreConfig        edit the innermost .litre.lua (path at cwd when none exists)
 --   :LitreCmake <dir>   generate build/run/debug tasks for a cmake build dir
@@ -10,6 +13,10 @@
 --   R  re-run last
 -- `i` drops into fuzzy search, enter runs the selection.
 local M = {}
+
+local lib = require("litre.lib")
+M.sh, M.out, M.cmd, M.env = lib.sh, lib.out, lib.cmd, lib.env
+M.pick, M.input, M.param, M.debug, M.map = lib.pick, lib.input, lib.param, lib.debug, lib.map
 
 local verbs -- filled below; load_tasks() strips map() keys that collide with them
 

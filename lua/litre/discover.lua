@@ -5,13 +5,13 @@
 -- once, and a repo-root helper is usable in every subdirectory file.
 --
 -- Every callable own-key of a file's env is a task (`local` = private, the
--- habit lua-ls already enforces). Files re-execute on every load(): params and
--- maps re-register from scratch and nothing is ever stale.
+-- habit lua-ls already enforces; Capitalized keeps its lowercase-global hint
+-- quiet). Files re-execute on every load(): params and maps re-register from
+-- scratch and nothing is ever stale. The primitives are not injected: a file
+-- does `local l = require("litre")` like any Lua module user.
 --
 -- The upward walk stats one exact path per directory level -- allowed even
 -- under the arc-mount rules; it must never grow into anything recursive.
-local lib = require("litre.lib")
-
 local M = {}
 
 M.loading = nil ---@type string|nil file currently executing (param/map registration)
@@ -83,18 +83,10 @@ local function callable(v)
     return mt ~= nil and mt.__call ~= nil
 end
 
-local primitives = {
-    "sh", "out", "cmd", "env", "pick", "input", "param", "debug", "map",
-}
-
 function M.load()
     local dirs, cwd = M.files()
     collect = { tasks = {}, params = {}, raw_maps = {}, maps = {}, files = {}, cwd = cwd }
-    local base = setmetatable({}, { __index = _G })
-    for _, name in ipairs(primitives) do
-        base[name] = lib[name]
-    end
-    local parent = base
+    local parent = setmetatable({}, { __index = _G })
     for _, dir in ipairs(dirs) do
         local file = vim.fs.joinpath(dir, ".litre.lua")
         local env = setmetatable({}, { __index = parent })

@@ -1,7 +1,8 @@
 -- :LitreCmake <builddir> -- ask cmake for its targets and generate imperative
 -- build/run/debug tasks into the current buffer (expected: a .litre.lua).
 -- Successor of v1's declarative generator; the output is plain source meant
--- to be edited down, not regenerated.
+-- to be edited down, not regenerated. It assumes the file's module local is
+-- `l`, as the readme's `local l = require("litre")` opening line names it.
 local M = {}
 
 -- matched against the captured target name alone (%S+ -- never any
@@ -12,18 +13,18 @@ local bad_targets = {
 }
 
 local template = [[
-function $NAME_build()
-    sh("cmake --build $DIR --target $TARGET")
+function Build_$NAME()
+    l.sh("cmake --build $DIR --target $TARGET")
 end
 
-function $NAME_run()
-    $NAME_build()
-    sh("./$TARGET", { dir = "$DIR" })
+function Run_$NAME()
+    Build_$NAME()
+    l.sh("./$TARGET", { dir = "$DIR" })
 end
 
-function $NAME_debug()
-    $NAME_build()
-    debug("cpp", { program = "$TARGET", dir = "$DIR" })
+function Debug_$NAME()
+    Build_$NAME()
+    l.debug("cpp", { program = "$TARGET", dir = "$DIR" })
 end
 
 ]]

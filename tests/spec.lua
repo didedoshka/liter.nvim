@@ -42,37 +42,38 @@ hidden()
 ]], "\n"), outer_file)
 
 vim.fn.writefile(vim.split([[
-local level = param("level", { "-O2", "-O3" })
+local l = require("litre")
+local level = l.param("level", { "-O2", "-O3" })
 function build()
     vim.g.litre_result = greeting .. level
 end
-map("b", build)
-capture = cmd({ "echo", "hehe" })
+l.map("b", build)
+capture = l.cmd({ "echo", "hehe" })
 function compose()
     vim.g.litre_compose = "haha" .. capture()
 end
 function stream()
-    sh({ "printf", "x\ny\n" })
+    l.sh({ "printf", "x\ny\n" })
 end
 function boom()
-    sh({ "false" })
+    l.sh({ "false" })
 end
 function soft()
-    vim.g.litre_soft = sh({ "false" }, { check = false })
+    vim.g.litre_soft = l.sh({ "false" }, { check = false })
 end
 function sleepy()
-    sh({ "sleep", "100" })
+    l.sh({ "sleep", "100" })
     vim.g.litre_sleepy_done = 1
 end
 function feed()
-    vim.g.litre_fed = out({ "cat" }, { stdin = "picked-b" })
+    vim.g.litre_fed = l.out({ "cat" }, { stdin = "picked-b" })
 end
 function where()
-    vim.g.litre_where = out({ "pwd" })
-    vim.g.litre_where_up = out({ "pwd" }, { dir = ".." })
+    vim.g.litre_where = l.out({ "pwd" })
+    vim.g.litre_where_up = l.out({ "pwd" }, { dir = ".." })
 end
 function dbg()
-    debug("tpl", { program = "bin/app", args = { "-x" } })
+    l.debug("tpl", { program = "bin/app", args = { "-x" } })
 end
 ]], "\n"), inner_file)
 
@@ -283,7 +284,8 @@ t.test("write-back appends to a multiline list", function()
     local multi = vim.fs.joinpath(tmp, "multi", ".litre.lua")
     vim.fn.mkdir(vim.fs.dirname(multi), "p")
     vim.fn.writefile(vim.split([[
-local mode = param("mode", {
+local l = require("litre")
+local mode = l.param("mode", {
     "debug",
     "release",
 })
@@ -308,8 +310,9 @@ t.test("write-back on a computed list fails with a message, not an edit", functi
     local comp = vim.fs.joinpath(tmp, "comp", ".litre.lua")
     vim.fn.mkdir(vim.fs.dirname(comp), "p")
     vim.fn.writefile(vim.split([[
+local l = require("litre")
 local opts = vim.split("a,b", ",")
-local mode = param("mode", opts)
+local mode = l.param("mode", opts)
 ]], "\n"), comp)
     t.notified = {}
     t.eq(params.add_option(comp, "mode", "c"), false)

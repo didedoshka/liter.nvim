@@ -1,3 +1,6 @@
+-- Fixture tasks stay lowercase on purpose: Capitalized is the documented
+-- convention, not a rule, and the suite pins that lowercase still runs.
+--
 -- Second offline tier: the surface spec.lua does not reach -- the coroutine
 -- runner under interleaving, env()/pick()/input(), the shell-vs-argv split,
 -- discovery's error paths, the x layer and the user commands, term window
@@ -102,78 +105,80 @@ vim.fn.mkdir(bare, "p")
 bare = vim.fs.normalize(assert(vim.uv.fs_realpath(bare)))
 
 write(vim.fs.joinpath(tmp, ".litre.lua"), [[
+local l = require("litre")
 shared_greeting = "hi"
 function outer_task()
-    vim.g.x_outer = out({ "pwd" })
+    vim.g.x_outer = l.out({ "pwd" })
 end
 function slow_outer()
-    out({ "sleep", "0.15" })
-    vim.g.x_slow_outer = out({ "pwd" })
+    l.out({ "sleep", "0.15" })
+    vim.g.x_slow_outer = l.out({ "pwd" })
 end
 ]])
 
 write(vim.fs.joinpath(work, ".litre.lua"), [[
-local level = param("level", { "-O2", "-O3" })
+local l = require("litre")
+local level = l.param("level", { "-O2", "-O3" })
 function slow_inner()
-    out({ "sleep", "0.05" })
-    vim.g.x_slow_inner = out({ "pwd" })
+    l.out({ "sleep", "0.05" })
+    vim.g.x_slow_inner = l.out({ "pwd" })
 end
 function envbundle()
-    local b = env({ dir = "deep", check = false })
+    local b = l.env({ dir = "deep", check = false })
     vim.g.x_env_dir = b.out({ "pwd" })
     vim.g.x_env_check = select(2, b.out({ "false" }))
     vim.g.x_env_override = b.out({ "pwd" }, { dir = ".." })
     vim.g.x_env_cmd = b.cmd({ "pwd" })()
 end
 function shellstr()
-    vim.g.x_shell = out("echo one; echo two")
+    vim.g.x_shell = l.out("echo one; echo two")
 end
 function argvliteral()
-    vim.g.x_argv = out({ "echo", "$HOME and; echo x" })
+    vim.g.x_argv = l.out({ "echo", "$HOME and; echo x" })
 end
 function inherits()
     vim.g.x_inherit = shared_greeting .. level
 end
 function picky()
-    vim.g.x_picked = tostring(pick({ "alpha", "beta" }, { prompt = "p" }))
+    vim.g.x_picked = tostring(l.pick({ "alpha", "beta" }, { prompt = "p" }))
 end
 function inputy()
-    vim.g.x_input = tostring(input("name: "))
+    vim.g.x_input = tostring(l.input("name: "))
 end
 function nobinary()
-    sh({ "litre-no-such-binary-zzz" })
+    l.sh({ "litre-no-such-binary-zzz" })
 end
 function badout()
-    out({ "litre-no-such-binary-zzz" })
+    l.out({ "litre-no-such-binary-zzz" })
 end
 function stderr_in_error()
-    out({ "sh", "-c", "echo detail 1>&2; exit 3" })
+    l.out({ "sh", "-c", "echo detail 1>&2; exit 3" })
 end
 function busy()
-    out({ "sleep", "0.4" })
+    l.out({ "sleep", "0.4" })
 end
 function hang()
-    sh({ "sleep", "30" })
+    l.sh({ "sleep", "30" })
 end
 function dbgfn()
-    debug("fn", { program = "bin/app", dir = "deep" })
+    l.debug("fn", { program = "bin/app", dir = "deep" })
 end
 function dbgmissing()
-    debug("nope")
+    l.debug("nope")
 end
 function badparam()
-    param("late", { "x" })
+    l.param("late", { "x" })
 end
 function stderr_stream()
     -- the marker is built at runtime so the echoed `$ cmd` header can't match it
-    sh({ "sh", "-c", "echo err-lin''e 1>&2" })
+    l.sh({ "sh", "-c", "echo err-lin''e 1>&2" })
 end
 function twostep()
-    sh({ "sleep", "0.15" })
-    sh({ "printf", "second-half" })
+    l.sh({ "sleep", "0.15" })
+    l.sh({ "printf", "second-half" })
 end
-streamer = cmd({ "printf", "from-cmd" })
-map("b", envbundle)
+streamer = l.cmd({ "printf", "from-cmd" })
+l.map("b", envbundle)
 ]])
 
 write(vim.fs.joinpath(tmp, "broken", ".litre.lua"), [[
@@ -185,19 +190,21 @@ error("top level boom")
 ]])
 
 write(vim.fs.joinpath(tmp, "weird", ".litre.lua"), [[
+local l = require("litre")
 function real_task()
 end
-map("x", real_task)
-map("z", function() end)
-map("R", real_task)
-map("i", real_task)
+l.map("x", real_task)
+l.map("z", function() end)
+l.map("R", real_task)
+l.map("i", real_task)
 ]])
 
 write(vim.fs.joinpath(tmp, "badmap", ".litre.lua"), [[
+local l = require("litre")
 function mc_task()
 end
-map("gd", mc_task)
-map(vim.keycode("<F5>"), mc_task)
+l.map("gd", mc_task)
+l.map(vim.keycode("<F5>"), mc_task)
 ]])
 
 vim.cmd.cd(work)
@@ -463,8 +470,9 @@ end)
 -- A file registers params and maps as it executes, so anything it registered
 -- before raising is already in the collector when the error unwinds it.
 write(vim.fs.joinpath(tmp, "ghost", ".litre.lua"), [[
-local mode = param("ghost_param", { "x", "y" })
-map("g", function() end)
+local l = require("litre")
+local mode = l.param("ghost_param", { "x", "y" })
+l.map("g", function() end)
 function ghost_task()
 end
 error("boom after registering")
@@ -532,14 +540,14 @@ t.test("a callable table is a task; a plain table and a scalar are not", functio
     end)
 end)
 
-t.test("a global named after a primitive shadows it, silently", function()
+t.test("a global named after a primitive is just a task: nothing is injected", function()
     at(vim.fs.joinpath(tmp, "shadow"), function()
         t.notified = {}
         local d = discover.load()
-        t.ok(find(d, "sh"), "the shadowing global is not itself a task")
-        t.eq(t.notified, {}, "shadowing a primitive is currently not reported")
-        -- and the file's own calls resolve to it rather than to lib.sh: the
-        -- task below would otherwise need a coroutine to run at all
+        t.ok(find(d, "sh"), "the global is not itself a task")
+        t.eq(t.notified, {}, "a plain global should load silently")
+        -- and the file's own calls resolve to it, not to lib.sh: the task
+        -- below would otherwise need a coroutine to run at all
         vim.g.x_shadowed_sh = nil
         assert(find(d, "uses_sh")).fn()
         t.eq(vim.g.x_shadowed_sh, "mine", "sh() did not resolve to the global")

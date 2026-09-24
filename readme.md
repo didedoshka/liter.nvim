@@ -1,28 +1,30 @@
 # litre
 
 An imperative task runner for Neovim. A `.litre.lua` file is a Lua
-program: its global functions are tasks, `local` means private, and anything
-expressible in Lua needs no plugin changes. See `design.md` for the rationale
-and the decision history.
+program: it requires litre like any module, its global functions are tasks
+(Capitalized by convention), `local` means private, and anything expressible
+in Lua needs no plugin changes. See `design.md` for the rationale and the
+decision history.
 
 ```lua
 -- .litre.lua
-local opt = param("optimization_level", { "-O2", "-O3", "-O0" })
-local b = env { dir = "build" }
+local l = require("litre")
+local opt = l.param("optimization_level", { "-O2", "-O3", "-O0" })
+local b = l.env { dir = "build" }
 
-function build()
+function Build()
     b.sh("cmake --build . -- -j8")
 end
 
-function run()
-    build()
+function Run()
+    Build()
     b.sh("./main " .. opt)
 end
-map("r", run)
+l.map("r", Run)
 
-function dbg()
-    build()
-    debug("cpp", { program = "main", dir = "build" })
+function Dbg()
+    Build()
+    l.debug("cpp", { program = "main", dir = "build" })
 end
 ```
 
@@ -32,23 +34,31 @@ All `.litre.lua` files from cwd upward are found (one stat per directory level,
 never a recursive walk) and re-executed on every use -- params and edits are
 always fresh. Files execute in sandboxed envs that nest: an inner file reads
 outer globals through `__index`, its own globals stay separate. Task ids from
-outer files carry the relative path: `build` (cwd's file), `../deploy`,
-`../../clean`. Tasks sort innermost first, so a bare name given to `:Litre`
+outer files carry the relative path: `Build` (cwd's file), `../Deploy`,
+`../../Clean`. Tasks sort innermost first, so a bare name given to `:Litre`
 resolves to the nearest one.
 
-## Primitives (globals inside .litre.lua)
+Tasks are Capitalized by convention: lua-ls's `lowercase-global` hint (its
+"did you forget `local`?" heuristic) stays quiet, and the names read as
+exported next to lowercase helpers. A lowercase task still runs.
+
+## Primitives (`local l = require("litre")`)
 
 | call | does |
 | --- | --- |
-| `sh(cmd, opts?)` | stream into the task's `litre://` buffer; returns exit code |
-| `out(cmd, opts?)` | capture silently; returns trimmed stdout (+ code) |
-| `cmd(c, opts?)` | callable value: `c()` captures like `out`; invoked as a task it streams |
-| `env { dir=, env= }` | defaults bundle: `b.sh`/`b.out`/`b.cmd` with those opts merged in |
-| `pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
-| `input(prompt_or_opts)` | `vim.ui.input` likewise |
-| `param(name, { ... })` | declare a param; returns its current value (top level only) |
-| `debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
-| `map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
+| `l.sh(cmd, opts?)` | stream into the task's `litre://` buffer; returns exit code |
+| `l.out(cmd, opts?)` | capture silently; returns trimmed stdout (+ code) |
+| `l.cmd(c, opts?)` | callable value: `c()` captures like `out`; invoked as a task it streams |
+| `l.env { dir=, env= }` | defaults bundle: `b.sh`/`b.out`/`b.cmd` with those opts merged in |
+| `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
+| `l.input(prompt_or_opts)` | `vim.ui.input` likewise |
+| `l.param(name, { ... })` | declare a param; returns its current value (top level only) |
+| `l.debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
+| `l.map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
+
+The calls are annotated in `lib.lua`, so lua-ls gives hover, signature help
+and completion on `l.` once it can see this checkout (lazydev adds it on the
+`require`).
 
 - `cmd`/`sh`/`out` take a **string** (runs via `<shell> -c`, default fish:
   pipes, `$VAR`, globs work) or an **argv table** (no shell, no quoting).
@@ -61,10 +71,10 @@ resolves to the nearest one.
   answer here. A stdin-fed command runs on plain pipes instead of the pty (a
   pty cannot deliver EOF), so it sees no tty and prints no color.
 - Nonzero exit **raises**: the task stops with a notification, so
-  `build(); run()` is a correct chain. Opt out per call with
+  `Build(); Run()` is a correct chain. Opt out per call with
   `{ check = false }` to get the code back instead.
 - Tasks run inside litre's coroutine runner; plain Lua helpers that call
-  `sh()`/`pick()` need nothing special, but task functions are not callable
+  `l.sh()`/`l.pick()` need nothing special, but task functions are not callable
   from outside litre. Calling a primitive outside a task is an error, including
   at file top level -- top level is for definitions, shell work goes in tasks.
 - A task already running is not started twice; different tasks run in
@@ -92,7 +102,7 @@ work is what `:terminal` is for.
 
 ## Params
 
-`param("name", { "a", "b" })` returns the persisted selection, defaulting to
+`l.param("name", { "a", "b" })` returns the persisted selection, defaulting to
 the first option. Selections persist in `stdpath("data")/litre/params.json`,
 keyed by file + name. The picker's "new value..." entry writes the new option
 back into the `.litre.lua` source (treesitter finds the literal list; computed
@@ -105,7 +115,7 @@ goes through the buffer -- unsaved changes survive -- and is written.
 | --- | --- |
 | `:Litre [task]` | run by id or bare name; no argument opens the picker |
 | `:LitreConfig` | edit the innermost `.litre.lua` (path at cwd if none exists) |
-| `:LitreCmake <dir>` | generate build/run/debug tasks from cmake's target list (Makefile generator only) |
+| `:LitreCmake <dir>` | generate `Build_`/`Run_`/`Debug_<target>` tasks from cmake's target list (Makefile generator only; the output calls `l.`) |
 
 Map a key to `require("litre").layer()`: it opens the fzf-pin picker over every
 task, `map()`ped keys shown as `[k]`, running tasks marked. Keys work inside the
@@ -136,7 +146,7 @@ require("litre").setup({
 })
 ```
 
-`debug("cpp", { program = "main", dir = "build" })` resolves a relative
+`l.debug("cpp", { program = "main", dir = "build" })` resolves a relative
 `program` against the task's directory (+ `dir`), defaults `cwd` to the same,
 and calls `require("dap").run`. Adapters and machine quirks stay in the nvim
 config; `.litre.lua` files only name a template.

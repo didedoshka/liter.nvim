@@ -1,4 +1,5 @@
--- The .litre.lua standard library, injected as globals into every file's env.
+-- The .litre.lua standard library, re-exported by require("litre") -- files
+-- reach it as `l.sh` etc. The annotations here are what lua-ls shows there.
 --
 -- Modelled on Go's os/exec: there is no ambient shell state -- no cd, no
 -- exported variables. A command carries its own dir/env, and running it
@@ -19,6 +20,22 @@ local state = require("litre.state")
 local term = require("litre.term")
 
 local M = {}
+
+---@class litre.Opts
+---@field dir? string relative to the defining .litre.lua's directory (the default); absolute passes through
+---@field env? table<string, string> extra environment variables for the command
+---@field check? boolean false: return the exit code instead of raising on nonzero
+---@field stdin? string|string[] feed standard input; runs on plain pipes, not the pty
+
+---@class litre.Cmd a callable command value: `c()` captures like `out`, run as a task it streams
+---@field cmd string|string[]
+---@field opts? litre.Opts
+---@overload fun(): string, integer
+
+---@class litre.Env a defaults bundle: `sh`/`out`/`cmd` with the bundle's opts merged in
+---@field sh fun(c: string|string[], opts?: litre.Opts): integer
+---@field out fun(c: string|string[], opts?: litre.Opts): string, integer
+---@field cmd fun(c: string|string[], opts?: litre.Opts): litre.Cmd
 
 local function argv(c)
     if type(c) == "table" then
@@ -53,6 +70,9 @@ end
 -- opts.stdin is the exception and takes a vim.system pipe path: a pty cannot
 -- deliver EOF (a stdin-fed `wc -l` hangs forever, measured) and echoes the
 -- fed input back into the output. Filters get pipes; terminals get the pty.
+---@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
+---@param opts? litre.Opts
+---@return integer code
 function M.sh(c, opts)
     opts = opts or {}
     local ctx = runner.ctx("sh")
@@ -154,6 +174,10 @@ function M.sh(c, opts)
     return code
 end
 
+---@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
+---@param opts? litre.Opts
+---@return string stdout trimmed
+---@return integer code
 function M.out(c, opts)
     opts = opts or {}
     local ctx = runner.ctx("out")
@@ -192,6 +216,9 @@ M.CMD.__call = function(self)
     return M.out(self.cmd, self.opts)
 end
 
+---@param c string|string[]
+---@param opts? litre.Opts
+---@return litre.Cmd
 function M.cmd(c, opts)
     return setmetatable({ cmd = c, opts = opts }, M.CMD)
 end
@@ -204,8 +231,10 @@ function M.as_cmd(v)
 end
 
 -- Immutable defaults bundle -- the os/exec answer to `cd`. Per-call opts win.
---   local b = env { dir = "build" }
+--   local b = l.env { dir = "build" }
 --   b.sh("cmake --build .")
+---@param defaults? litre.Opts
+---@return litre.Env
 function M.env(defaults)
     local function merge(opts)
         return vim.tbl_extend("keep", opts or {}, defaults or {})
@@ -226,6 +255,10 @@ end
 -- vim.ui.select through the coroutine. The stock implementation calls back
 -- synchronously; fzf-lua does not -- handle both (same dance as the dap
 -- config's input()).
+---@generic T
+---@param items T[]
+---@param opts? table vim.ui.select options (prompt, format_item)
+---@return T? choice nil when cancelled
 function M.pick(items, opts)
     local ctx = runner.ctx("pick")
     local value, returned = nil, false
@@ -241,6 +274,8 @@ function M.pick(items, opts)
     return coroutine.yield()
 end
 
+---@param opts string|table the prompt, or vim.ui.input options
+---@return string? value nil when cancelled
 function M.input(opts)
     local ctx = runner.ctx("input")
     if type(opts) == "string" then
@@ -263,6 +298,9 @@ end
 -- first option). Selection UI and source write-back live in litre.params.
 -- Top level ONLY: a param declared inside a task would read a value but never
 -- register while discovery runs, so the picker could not see it -- a trap.
+---@param name string
+---@param options string[] a literal list: the picker's "new value..." writes into it
+---@return string value the persisted selection, else options[1]
 function M.param(name, options)
     local discover = require("litre.discover")
     local file = discover.loading
@@ -279,6 +317,8 @@ end
 
 -- Machine-side base named `template` (setup{ dap_templates }), project-side
 -- overrides; merges and dap.run()s. Relative program resolves like dir does.
+---@param template string a key of setup{ dap_templates }
+---@param overrides? table dap fields plus `dir`
 function M.debug(template, overrides)
     local ctx = runner.ctx("debug")
     local base = config.opts.dap_templates[template]
@@ -303,6 +343,8 @@ end
 
 -- x-layer key for a task, declared next to the task itself. Discovery
 -- resolves the function back to its global name.
+---@param key string one typable key; vim.keycode() for specials
+---@param fn function a global task of this file
 function M.map(key, fn)
     local discover = require("litre.discover")
     if not discover.loading then

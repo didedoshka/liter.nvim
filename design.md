@@ -76,7 +76,8 @@ Consequences for litre:
 ### Tasks = globals in a sandboxed env (decided)
 
 Each `.litre.lua` is executed with `load(..., env)` where `env` is a fresh table
-(falling back to litre primitives and `_G` via `__index`). Every top-level
+(falling back to `_G` via `__index`; the primitives come from
+`require("litre")`, decision 17). Every top-level
 `function foo()` lands in that table; every **callable** value in the env is a
 task. `local` = private helper, invisible to the picker — which matches the
 existing habit of marking non-exported functions `local` (lua-ls already
@@ -384,6 +385,20 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     most -- `map("r", run)` was rejected as reserved by the first real config.
     Verbs are `V/C/O/R` now (fzf-pin binds a source's verb keys whatever their
     case), so the whole lowercase alphabet minus `i` belongs to `map()`.
+
+17. **Primitives via require, tasks Capitalized (2026-09-24):** reverses 10.
+    lua-ls saw eight undefined globals per file and typed nothing. Every
+    file now opens with `local l = require("litre")` (init re-exports
+    `lib`'s nine functions, annotated there) so hover, signature help and
+    completion work, and a file stays warning-free even when lua-ls cannot
+    see the checkout. A `---@meta` stub was rejected: it duplicates the
+    signatures and depends on litre.nvim being in lua-ls's library, which the
+    config's runtime-path snapshot delivered in 2 of 5 launches (replaced by
+    lazydev on the config side). `debug` no longer shadows Lua's debug
+    library. Tasks are Capitalized: `lowercase-global` is lua-ls's "forgot
+    `local`" heuristic and Capitalized is its own convention for intended
+    globals, so no directive line and no diagnostic filter -- a convention,
+    not a rule; lowercase tasks still run (the spec pins it).
 
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
