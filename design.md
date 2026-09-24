@@ -418,6 +418,17 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     (measured), so cmake itself runs only on the first call. The config's
     `litre_cmake` snippet is the whole per-project boilerplate.
 
+19. **`env` is `with`, and stacks (2026-09-24):** the bundle was named after
+    Go's os/exec, which has no such thing -- each `exec.Cmd` carries its own
+    `Dir`/`Env` and nothing reuses them -- so the name was litre's own, and
+    it collided with the `env` key it takes (`l.env { env = ... }`).
+    `with` reads at the call site. `b.with { ... }` returns a new bundle on
+    top of `b`: the closer setting wins key by key (a stacked or per-call
+    `dir` replaces, it never appends, since every dir resolves against the
+    task's own .litre.lua), except `env`, whose variables accumulate -- a
+    stacked bundle that replaced the whole variable set would defeat the
+    only reason to stack one. `defaults`, `at` and `opts` were the runners-up.
+
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

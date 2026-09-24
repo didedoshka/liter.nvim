@@ -2,7 +2,7 @@
 -- convention, not a rule, and the suite pins that lowercase still runs.
 --
 -- Second offline tier: the surface spec.lua does not reach -- the coroutine
--- runner under interleaving, env()/pick()/input(), the shell-vs-argv split,
+-- runner under interleaving, with()/pick()/input(), the shell-vs-argv split,
 -- discovery's error paths, the x layer and the user commands, term window
 -- placement, and the params/state edge cases.
 --
@@ -123,12 +123,21 @@ function slow_inner()
     l.out({ "sleep", "0.05" })
     vim.g.x_slow_inner = l.out({ "pwd" })
 end
-function envbundle()
-    local b = l.env({ dir = "deep", check = false })
-    vim.g.x_env_dir = b.out({ "pwd" })
-    vim.g.x_env_check = select(2, b.out({ "false" }))
-    vim.g.x_env_override = b.out({ "pwd" }, { dir = ".." })
-    vim.g.x_env_cmd = b.cmd({ "pwd" })()
+function withbundle()
+    local b = l.with({ dir = "deep", check = false })
+    vim.g.x_with_dir = b.out({ "pwd" })
+    vim.g.x_with_check = select(2, b.out({ "false" }))
+    vim.g.x_with_override = b.out({ "pwd" }, { dir = ".." })
+    vim.g.x_with_cmd = b.cmd({ "pwd" })()
+end
+function withstack()
+    local b = l.with({ dir = "deep", env = { X_A = "a", X_B = "outer" } })
+    local s = b.with({ env = { X_B = "inner", X_C = "c" } })
+    vim.g.x_stack_dir = s.out({ "pwd" })
+    vim.g.x_stack_env = s.out("echo $X_A $X_B $X_C")
+    vim.g.x_stack_call = s.out("echo $X_A $X_B $X_C", { env = { X_C = "call" } })
+    vim.g.x_stack_dir2 = s.with({ dir = ".." }).out({ "pwd" })
+    vim.g.x_stack_base = b.out("echo $X_A $X_B ${X_C:-unset}")
 end
 function shellstr()
     vim.g.x_shell = l.out("echo one; echo two")
@@ -178,7 +187,7 @@ function twostep()
     l.sh({ "printf", "second-half" })
 end
 streamer = l.cmd({ "printf", "from-cmd" })
-l.map("b", envbundle)
+l.map("b", withbundle)
 ]])
 
 write(vim.fs.joinpath(tmp, "broken", ".litre.lua"), [[
@@ -241,15 +250,25 @@ t.test("a second run of a live task is refused, not queued", function()
     t.ok(wait_done(task), "busy did not finish")
 end)
 
--- --- env() bundle -----------------------------------------------------------
-t.test("env() defaults apply to sh/out/cmd, per-call opts win", function()
-    run("envbundle")
-    t.eq(vim.g.x_env_dir, deep)
-    t.eq(vim.g.x_env_check, 1, "check = false did not carry through the bundle")
+-- --- with() bundle ----------------------------------------------------------
+t.test("with() defaults apply to sh/out/cmd, per-call opts win", function()
+    run("withbundle")
+    t.eq(vim.g.x_with_dir, deep)
+    t.eq(vim.g.x_with_check, 1, "check = false did not carry through the bundle")
     -- a per-call dir replaces the bundle's outright; it does not stack on top
     -- of it, because every dir resolves against the .litre.lua's own directory
-    t.eq(vim.g.x_env_override, tmp, "per-call dir did not win over the default")
-    t.eq(vim.g.x_env_cmd, deep, "bundle defaults did not reach cmd()")
+    t.eq(vim.g.x_with_override, tmp, "per-call dir did not win over the default")
+    t.eq(vim.g.x_with_cmd, deep, "bundle defaults did not reach cmd()")
+end)
+
+t.test("with() stacks: closer wins key by key, env variables accumulate", function()
+    config.setup({ shell = "sh" })
+    run("withstack")
+    t.eq(vim.g.x_stack_dir, deep, "the outer dir did not carry into the stacked bundle")
+    t.eq(vim.g.x_stack_env, "a inner c")
+    t.eq(vim.g.x_stack_call, "a inner call", "a per-call env must add to the stack, not replace it")
+    t.eq(vim.g.x_stack_dir2, tmp, "a stacked dir must replace the outer one")
+    t.eq(vim.g.x_stack_base, "a outer unset", "stacking must not mutate the base bundle")
 end)
 
 -- --- shell vs argv ----------------------------------------------------------
@@ -272,7 +291,7 @@ end)
 
 t.test("outer file cannot see inner globals", function()
     local d = discover.load()
-    t.eq(find(d, "../envbundle"), nil, "inner task leaked into the outer env")
+    t.eq(find(d, "../withbundle"), nil, "inner task leaked into the outer env")
     t.eq(find(d, "../slow_inner"), nil)
 end)
 
@@ -581,10 +600,10 @@ local function layer_with(key)
 end
 
 t.test("layer: a map()ped key runs its task", function()
-    vim.g.x_env_dir = nil
+    vim.g.x_with_dir = nil
     layer_with("b")
     t.ok(vim.wait(3000, function()
-        return vim.g.x_env_dir ~= nil
+        return vim.g.x_with_dir ~= nil
     end, 10), "the mapped task never ran")
 end)
 
@@ -598,7 +617,7 @@ t.test("layer: entries render map() chars and the running marker", function()
     local built = fzfpin.build(litre.source)
     local bundled
     for _, e in ipairs(built.entries()) do
-        if e:find("envbundle", 1, true) then
+        if e:find("withbundle", 1, true) then
             bundled = e
         end
     end

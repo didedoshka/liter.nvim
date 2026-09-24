@@ -32,10 +32,11 @@ local M = {}
 ---@field opts? litre.Opts
 ---@overload fun(): string, integer
 
----@class litre.Env a defaults bundle: `sh`/`out`/`cmd` with the bundle's opts merged in
+---@class litre.With a defaults bundle: `sh`/`out`/`cmd` with the bundle's opts merged in
 ---@field sh fun(c: string|string[], opts?: litre.Opts): integer
 ---@field out fun(c: string|string[], opts?: litre.Opts): string, integer
 ---@field cmd fun(c: string|string[], opts?: litre.Opts): litre.Cmd
+---@field with fun(more?: litre.Opts): litre.With a new bundle with `more` merged on top
 
 local function argv(c)
     if type(c) == "table" then
@@ -230,14 +231,24 @@ function M.as_cmd(v)
     return nil
 end
 
--- Immutable defaults bundle -- the os/exec answer to `cd`. Per-call opts win.
---   local b = l.env { dir = "build" }
+-- Immutable defaults bundle -- the os/exec answer to `cd`. Stackable: b.with
+-- returns a new bundle with more defaults on top. The closer setting wins key
+-- by key (a per-call dir replaces the bundle's, it does not append to it);
+-- `env` is the exception, its variables accumulate through the stack.
+--   local b = l.with { dir = "build" }
 --   b.sh("cmake --build .")
+--   b.with({ env = { ASAN_OPTIONS = "detect_leaks=0" } }).sh("./main")
 ---@param defaults? litre.Opts
----@return litre.Env
-function M.env(defaults)
+---@return litre.With
+function M.with(defaults)
+    defaults = defaults or {}
     local function merge(opts)
-        return vim.tbl_extend("keep", opts or {}, defaults or {})
+        opts = opts or {}
+        local merged = vim.tbl_extend("keep", opts, defaults)
+        if opts.env and defaults.env then
+            merged.env = vim.tbl_extend("keep", opts.env, defaults.env)
+        end
+        return merged
     end
     return {
         sh = function(c, opts)
@@ -248,6 +259,9 @@ function M.env(defaults)
         end,
         cmd = function(c, opts)
             return M.cmd(c, merge(opts))
+        end,
+        with = function(more)
+            return M.with(merge(more))
         end,
     }
 end
