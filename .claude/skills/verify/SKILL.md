@@ -26,8 +26,8 @@ standalone lua on this box; `nvim --clean -l` is the runtime.
 The spec cannot press keys or see windows. After changes to these, check by
 hand in a real nvim with the config loaded:
 
-- **the layer**: `xx` picker, `xv` param flow (fzf-lua renders it), `x<key>`
-  mapped task, `xo`/`xr`; getcharstr behaviour on Esc.
+- **the layer**: `x` picker, `xV` param flow (fzf-lua renders it), `x<key>`
+  mapped task, `xO`/`xR`; Esc closes the picker.
 - **window placement**: output buffer takes the current window when hidden,
   stays put when visible in a split; autoscroll while streaming.
 - **`debug()`**: needs the real gdb adapter from the nvim config

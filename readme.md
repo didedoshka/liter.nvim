@@ -113,14 +113,14 @@ picker (reserved; `map()` to them warns and is ignored):
 
 | key | does |
 | --- | --- |
-| `v` | param picker → value picker → "new value..." |
-| `c` | edit config |
-| `o` | show the last task's output buffer in the current window |
-| `r` | re-run the last task |
+| `V` | param picker → value picker → "new value..." |
+| `C` | edit config |
+| `O` | show the last task's output buffer in the current window |
+| `R` | re-run the last task |
 | `i` | fzf-pin's search key: unbinds the chars, type to filter, enter runs |
 | other lowercase | the task `map()`ped to it (free chars warn) |
 
-The picker opens even with no tasks discovered, so `c` can create the first
+The picker opens even with no tasks discovered, so `C` can create the first
 `.litre.lua`. The layer source is `require("litre").source` (an
 [fzf-pin](../fzf-pin.nvim) source; that repo's readme has the contract).
 

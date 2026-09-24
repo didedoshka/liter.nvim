@@ -242,8 +242,8 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
   `<bs>s`/`<bs>x`/`<bs>p` (select / compile+run / compile+debug) workflow was
   not extensible — constant target-switching; per-task shortcuts replace it.
 - Keys are assigned in `.litre.lua` itself (`map("c", build)`, per-project, next
-  to the definition); verbs settled as `v/c/o/r` (decided with v2; `k` was a
-  verb until 2026-08-12, see decision 15).
+  to the definition); verbs are `V/C/O/R` (lowercase with v2, uppercase since
+  2026-09-24, see decision 16; `k` was a verb until 2026-08-12, see decision 15).
 - Discoverability (decided 2026-08-06): the blind `getcharstr` layer is gone.
   `x` opens fzf-pin's picker (shared machinery, `~/personal/fzf-pin.nvim`) with
   every task listed and the map()ped chars live as binds — same keystrokes as
@@ -379,6 +379,11 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     several tasks running, since each buffer knows its task. Escalation kept
     (second ctrl-c SIGKILLs); prompt-suspended tasks still answer "cancel the
     prompt instead". `k` is a free map() key again.
+
+16. **Verbs uppercase (2026-09-24):** `v/c/o/r` sat on the keys tasks want
+    most -- `map("r", run)` was rejected as reserved by the first real config.
+    Verbs are `V/C/O/R` now (fzf-pin binds a source's verb keys whatever their
+    case), so the whole lowercase alphabet minus `i` belongs to `map()`.
 
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-

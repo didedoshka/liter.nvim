@@ -189,7 +189,7 @@ function real_task()
 end
 map("x", real_task)
 map("z", function() end)
-map("r", real_task)
+map("R", real_task)
 map("i", real_task)
 ]])
 
@@ -550,7 +550,7 @@ t.test("a map() on a layer verb or on i is stripped when the layer loads", funct
     at(vim.fs.joinpath(tmp, "weird"), function()
         t.notified = {}
         litre.source.list()
-        t.ok(notified('key "r" is reserved by the layer'),
+        t.ok(notified('key "R" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
         t.ok(notified('key "i" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
@@ -567,7 +567,9 @@ local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
     local built = fzfpin.build(litre.source)
     built.entries() -- populates the char lookup, as fzf listing entries would
-    built.actions[key]()
+    -- uppercase verbs are bound raw and dispatched by their underscore name
+    local action = built.actions[key] or built.actions["_verb_" .. key:lower()]
+    action()
 end
 
 t.test("layer: a map()ped key runs its task", function()
@@ -596,17 +598,17 @@ t.test("layer: entries render map() chars and the running marker", function()
         .. tostring(bundled))
 end)
 
-t.test("layer: o shows the last task's output buffer", function()
+t.test("layer: O shows the last task's output buffer", function()
     run("streamer") -- make streamer the last task, with a buffer
-    layer_with("o")
+    layer_with("O")
     t.eq(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()), "litre://streamer")
     vim.cmd.enew()
 end)
 
-t.test("layer: r re-runs the last task", function()
+t.test("layer: R re-runs the last task", function()
     run("inherits")
     vim.g.x_inherit = nil
-    layer_with("r")
+    layer_with("R")
     t.ok(vim.wait(3000, function()
         return vim.g.x_inherit ~= nil
     end, 10), "re-run did not happen")
@@ -728,7 +730,7 @@ end)
 
 t.test("the layer source is empty but usable when no .litre.lua exists", function()
     at(bare, function()
-        -- the picker still opens: verbs like c (edit config) must stay reachable
+        -- the picker still opens: verbs like C (edit config) must stay reachable
         t.eq(litre.source.list(), {})
     end)
 end)

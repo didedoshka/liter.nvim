@@ -6,8 +6,8 @@
 -- The layer -- map one key (x in didedoshka's config) to require("litre").layer():
 -- opens the fzf-pin picker over every task, map()ped chars shown as [k].
 -- A map()ped char runs its task immediately; verbs run in the picker too
---   v  param picker    c  edit config    o  show last task's output buffer
---   r  re-run last
+--   V  param picker    C  edit config    O  show last task's output buffer
+--   R  re-run last
 -- `i` drops into fuzzy search, enter runs the selection.
 local M = {}
 
@@ -150,11 +150,13 @@ function M.rerun()
     vim.notify("litre: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
 end
 
+-- uppercase: every lowercase key stays free for map() -- r for run was the
+-- first real config's collision when these were lowercase
 verbs = {
-    v = M.pick_param,
-    c = M.edit_config,
-    o = M.show_output,
-    r = M.rerun,
+    V = M.pick_param,
+    C = M.edit_config,
+    O = M.show_output,
+    R = M.rerun,
 }
 M.source.verbs = verbs
 
