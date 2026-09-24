@@ -830,7 +830,7 @@ end)
 -- --- cmake helpers ----------------------------------------------------------
 -- No cmake in the offline tier: a hand-written file-API reply (the shape
 -- cmake 3.28 writes, measured) stands in for a configured build dir.
-t.test("cmake.targets/exe read the file-API reply", function()
+t.test("cmake.executables/executable_path read the file-API reply", function()
     local proj = vim.fs.joinpath(tmp, "cm")
     local reply = vim.fs.joinpath(proj, "bld", ".cmake", "api", "v1", "reply")
     local function json(name, obj)
@@ -849,13 +849,13 @@ t.test("cmake.targets/exe read the file-API reply", function()
     write(vim.fs.joinpath(proj, ".litre.lua"), [[
 local cm = require("litre.cmake")
 function probe()
-    vim.g.x_cm = { targets = cm.targets("bld"), tool = cm.exe("bld", "tool") }
+    vim.g.x_cm = { targets = cm.executables("bld"), tool = cm.executable_path("bld", "tool") }
 end
 function missing()
-    cm.exe("bld", "lib")
+    cm.executable_path("bld", "lib")
 end
 function unset()
-    cm.exe("bld", nil)
+    cm.executable_path("bld", nil)
 end
 ]])
     at(proj, function()

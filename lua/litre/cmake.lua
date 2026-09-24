@@ -5,18 +5,18 @@
 -- `cmake --build` that re-configures refreshes the reply (measured), so only
 -- the very first call runs cmake itself.
 --
---   local target = l.param("target", function() return cm.targets("build") end)
---   b.sh("./" .. cm.exe("build", target))
+--   local target = l.param("target", function() return cm.executables("build") end)
+--   b.sh("./" .. cm.executable_path("build", target))
 --
 -- Both take the build dir the way sh's opts.dir does: relative to the calling
--- task's .litre.lua, so they only work inside a task (targets() runs inside the
--- V picker's task; exe() inside Build/Run/Debug).
+-- task's .litre.lua, so they only work inside a task (executables() runs
+-- inside the V picker's task; executable_path() inside Build/Run/Debug).
 local M = {}
 
 local lib = require("litre.lib")
 local runner = require("litre.runner")
 
-local function build_dir(dir)
+local function resolve(dir)
     local ctx = runner.ctx("cmake")
     dir = vim.fs.normalize(dir)
     if dir:sub(1, 1) == "/" then
@@ -48,7 +48,7 @@ local function index(reply)
 end
 
 -- name -> artifact path (relative to the build dir) of every executable target
-local function executables(build)
+local function read_executables(build)
     local reply = vim.fs.joinpath(build, ".cmake", "api", "v1", "reply")
     local idx = index(reply)
     if not idx then
@@ -73,36 +73,36 @@ end
 
 -- Executable target names of a build dir, sorted. Plants the file-API query
 -- and configures once when no reply exists yet (streams like any sh).
----@param dir string build directory, relative to the task's .litre.lua
+---@param build_dir string relative to the task's .litre.lua
 ---@return string[]
-function M.targets(dir)
-    local build = build_dir(dir)
-    local exes = executables(build)
+function M.executables(build_dir)
+    local build = resolve(build_dir)
+    local exes = read_executables(build)
     if not exes then
         vim.fn.mkdir(vim.fs.joinpath(build, ".cmake", "api", "v1", "query"), "p")
         vim.fn.writefile({}, vim.fs.joinpath(build, ".cmake", "api", "v1", "query", "codemodel-v2"))
         lib.sh({ "cmake", build })
-        exes = executables(build) or {}
+        exes = read_executables(build) or {}
     end
     local names = vim.tbl_keys(exes)
     table.sort(names)
     return names
 end
 
--- Artifact path of an executable target, relative to the build dir (a target
+-- Path of an executable target's binary, relative to the build dir (a target
 -- from a subdirectory lives in that subdirectory).
----@param dir string build directory, relative to the task's .litre.lua
----@param name string? target name (a param that is still unset is nil)
+---@param build_dir string relative to the task's .litre.lua
+---@param executable string? target name (a param that is still unset is nil)
 ---@return string
-function M.exe(dir, name)
-    if not name then
+function M.executable_path(build_dir, executable)
+    if not executable then
         runner.abort("cmake: no target chosen yet -- pick one with V")
     end
-    local exes = executables(build_dir(dir)) or {}
-    if not exes[name] then
-        runner.abort(("cmake: no executable target %q (V refreshes the list)"):format(name))
+    local exes = read_executables(resolve(build_dir)) or {}
+    if not exes[executable] then
+        runner.abort(("cmake: no executable target %q (V refreshes the list)"):format(executable))
     end
-    return exes[name]
+    return exes[executable]
 end
 
 return M

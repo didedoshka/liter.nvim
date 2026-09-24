@@ -411,8 +411,8 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     task of its own -- the coroutine is the same one that keeps `sh`/`out`/
     `pick` blue for every task body, so the function is colourless too, and
     ctrl-c in its buffer kills it. `runner.last` is restored around it so
-    `R` never re-runs a choice. `cmake.lua` shrinks to `targets(dir)` and
-    `exe(dir, name)` over cmake's file API: generator-agnostic, executables
+    `R` never re-runs a choice. `cmake.lua` shrinks to `executables(build_dir)`
+    and `executable_path(build_dir, executable)` over cmake's file API: generator-agnostic, executables
     only, real artifact paths (a subdirectory target is `sub/tool`), and a
     plain `cmake --build` refreshes the reply once the query file exists
     (measured), so cmake itself runs only on the first call. The config's

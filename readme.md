@@ -114,10 +114,11 @@ goes through the buffer -- unsaved changes survive -- and is written.
 output streams to a `litre://` buffer as usual) and opens the value picker on
 what it returns; no "new value..." entry. Until a value has been chosen once
 the param reads `nil`. `require("litre.cmake")` is the ready-made case:
-`cm.targets(dir)` lists a build dir's executable targets through cmake's file
-API (configuring once to plant the query; any later re-configure refreshes the
-reply), `cm.exe(dir, name)` gives a target's artifact path for `Run`/`Debug`.
-Both resolve `dir` like `sh`'s `opts.dir` and only work inside a task.
+`cm.executables(build_dir)` lists a build dir's executable targets through
+cmake's file API (configuring once to plant the query; any later re-configure
+refreshes the reply), `cm.executable_path(build_dir, executable)` gives the
+binary's path for `Run`/`Debug`. Both resolve `build_dir` like `sh`'s
+`opts.dir` and only work inside a task.
 
 ## Commands & layer
 
