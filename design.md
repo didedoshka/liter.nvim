@@ -429,6 +429,14 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     stacked bundle that replaced the whole variable set would defeat the
     only reason to stack one. `defaults`, `at` and `opts` were the runners-up.
 
+20. **`cmd` deleted (2026-09-24):** the leftover of requirement 3, "call a
+    string as a function", which Lua cannot do. The wrapper it became did
+    two things depending on the caller -- `c()` captured, the picker
+    streamed -- and saved two lines per one-command task. No real file ever
+    used it. Gone with it: the `CMD` metatable and `as_cmd`, the runner's
+    special case, the bundle's `cmd`, and discovery's `__call`-table rule:
+    a task is a function, nothing else.
+
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

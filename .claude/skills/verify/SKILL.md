@@ -13,7 +13,7 @@ tests/run.sh spec     # just the spec
 ```
 
 The spec is end-to-end on `nvim --clean`: it builds a temp tree of nested
-`.litre.lua` files and drives discovery (nesting, prefixes, locals, cmd values,
+`.litre.lua` files and drives discovery (nesting, prefixes, locals,
 maps), the runner (both shell colors, streaming into `litre://` buffers, buffer
 replacement on re-run, error semantics both ways), params (state persistence
 and treesitter write-back: single-line, multiline, through a dirty buffer,

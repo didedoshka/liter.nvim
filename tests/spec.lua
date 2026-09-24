@@ -48,9 +48,8 @@ function build()
     vim.g.litre_result = greeting .. level
 end
 l.map("b", build)
-capture = l.cmd({ "echo", "hehe" })
 function compose()
-    vim.g.litre_compose = "haha" .. capture()
+    vim.g.litre_compose = "haha" .. l.out({ "echo", "hehe" })
 end
 function stream()
     l.sh({ "printf", "x\ny\n" })
@@ -102,10 +101,6 @@ t.test("locals are private", function()
     t.eq(find(d, "../hidden"), nil)
 end)
 
-t.test("cmd values are tasks too", function()
-    t.ok(find(d, "capture"), "capture missing")
-end)
-
 t.test("tasks sort innermost first", function()
     t.ok(d.tasks[1].dir == vim.fs.normalize(inner), "first task not from inner file")
 end)
@@ -140,7 +135,7 @@ t.test("persisted param value wins on the next load", function()
 end)
 
 -- --- shell colors -----------------------------------------------------------
-t.test("out() captures trimmed stdout; compose via cmd()", function()
+t.test("out() captures trimmed stdout and composes", function()
     local task = find(d, "compose")
     runner.run(task)
     t.ok(wait_done(task), "compose did not finish")

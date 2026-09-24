@@ -10,7 +10,7 @@
 ---@class litre.Task
 ---@field id string task id shown in the picker ("build", "../deploy", ...)
 ---@field name string bare name inside its file
----@field fn function|table the callable from the .litre.lua env
+---@field fn function the task function from the .litre.lua env
 ---@field dir string directory of the defining .litre.lua
 ---@field file string path of the defining .litre.lua
 ---@field co? thread
@@ -58,17 +58,7 @@ function M.run(task)
     M.last = task
     task.chan = nil -- each run gets a fresh output buffer on first sh()
     task.proc, task.killed = nil, nil
-    task.co = coroutine.create(function()
-        local lib = require("litre.lib")
-        local c = lib.as_cmd(task.fn)
-        if c then
-            -- a `cmd "..."` value invoked as a task streams; called inside
-            -- an expression it captures (see lib.cmd)
-            lib.sh(c.cmd, c.opts)
-        else
-            task.fn()
-        end
-    end)
+    task.co = coroutine.create(task.fn)
     M.resume(task)
 end
 

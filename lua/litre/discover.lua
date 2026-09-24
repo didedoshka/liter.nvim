@@ -4,7 +4,7 @@
 -- own keys stay separate -- so introspection lists each file's tasks exactly
 -- once, and a repo-root helper is usable in every subdirectory file.
 --
--- Every callable own-key of a file's env is a task (`local` = private, the
+-- Every function own-key of a file's env is a task (`local` = private, the
 -- habit lua-ls already enforces; Capitalized keeps its lowercase-global hint
 -- quiet). Files re-execute on every load(): params and maps re-register from
 -- scratch and nothing is ever stale. The primitives are not injected: a file
@@ -72,17 +72,6 @@ local function rel_prefix(cwd, dir)
     return rel .. "/"
 end
 
-local function callable(v)
-    if type(v) == "function" then
-        return true
-    end
-    if type(v) ~= "table" then
-        return false
-    end
-    local mt = getmetatable(v)
-    return mt ~= nil and mt.__call ~= nil
-end
-
 function M.load()
     local dirs, cwd = M.files()
     collect = { tasks = {}, params = {}, raw_maps = {}, maps = {}, files = {}, cwd = cwd }
@@ -117,7 +106,7 @@ function M.load()
                 local prefix = rel_prefix(cwd, dir)
                 local names = {}
                 for k, v in pairs(env) do -- own keys only; __index hides inherited
-                    if type(k) == "string" and callable(v) then
+                    if type(k) == "string" and type(v) == "function" then
                         table.insert(names, k)
                     end
                 end

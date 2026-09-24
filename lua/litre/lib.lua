@@ -27,15 +27,9 @@ local M = {}
 ---@field check? boolean false: return the exit code instead of raising on nonzero
 ---@field stdin? string|string[] feed standard input; runs on plain pipes, not the pty
 
----@class litre.Cmd a callable command value: `c()` captures like `out`, run as a task it streams
----@field cmd string|string[]
----@field opts? litre.Opts
----@overload fun(): string, integer
-
----@class litre.With a defaults bundle: `sh`/`out`/`cmd` with the bundle's opts merged in
+---@class litre.With a defaults bundle: `sh`/`out` with the bundle's opts merged in
 ---@field sh fun(c: string|string[], opts?: litre.Opts): integer
 ---@field out fun(c: string|string[], opts?: litre.Opts): string, integer
----@field cmd fun(c: string|string[], opts?: litre.Opts): litre.Cmd
 ---@field with fun(more?: litre.Opts): litre.With a new bundle with `more` merged on top
 
 local function argv(c)
@@ -207,30 +201,6 @@ function M.out(c, opts)
     return stdout, res.code
 end
 
--- `cmd "echo hehe"` -- the closest Lua gets to a callable command string.
--- Calling the value captures (so `foo() .. bar()` composition reads like
--- command substitution); invoking it as a task from the picker streams
--- (runner.run special-cases these via as_cmd).
-M.CMD = {}
-M.CMD.__index = M.CMD
-M.CMD.__call = function(self)
-    return M.out(self.cmd, self.opts)
-end
-
----@param c string|string[]
----@param opts? litre.Opts
----@return litre.Cmd
-function M.cmd(c, opts)
-    return setmetatable({ cmd = c, opts = opts }, M.CMD)
-end
-
-function M.as_cmd(v)
-    if type(v) == "table" and getmetatable(v) == M.CMD then
-        return v
-    end
-    return nil
-end
-
 -- Immutable defaults bundle -- the os/exec answer to `cd`. Stackable: b.with
 -- returns a new bundle with more defaults on top. The closer setting wins key
 -- by key (a per-call dir replaces the bundle's, it does not append to it);
@@ -256,9 +226,6 @@ function M.with(defaults)
         end,
         out = function(c, opts)
             return M.out(c, merge(opts))
-        end,
-        cmd = function(c, opts)
-            return M.cmd(c, merge(opts))
         end,
         with = function(more)
             return M.with(merge(more))

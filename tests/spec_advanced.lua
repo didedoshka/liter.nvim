@@ -128,7 +128,6 @@ function withbundle()
     vim.g.x_with_dir = b.out({ "pwd" })
     vim.g.x_with_check = select(2, b.out({ "false" }))
     vim.g.x_with_override = b.out({ "pwd" }, { dir = ".." })
-    vim.g.x_with_cmd = b.cmd({ "pwd" })()
 end
 function withstack()
     local b = l.with({ dir = "deep", env = { X_A = "a", X_B = "outer" } })
@@ -186,7 +185,9 @@ function twostep()
     l.sh({ "sleep", "0.15" })
     l.sh({ "printf", "second-half" })
 end
-streamer = l.cmd({ "printf", "from-cmd" })
+function streamer()
+    l.sh({ "printf", "from-streamer" })
+end
 l.map("b", withbundle)
 ]])
 
@@ -251,14 +252,13 @@ t.test("a second run of a live task is refused, not queued", function()
 end)
 
 -- --- with() bundle ----------------------------------------------------------
-t.test("with() defaults apply to sh/out/cmd, per-call opts win", function()
+t.test("with() defaults apply to sh/out, per-call opts win", function()
     run("withbundle")
     t.eq(vim.g.x_with_dir, deep)
     t.eq(vim.g.x_with_check, 1, "check = false did not carry through the bundle")
     -- a per-call dir replaces the bundle's outright; it does not stack on top
     -- of it, because every dir resolves against the .litre.lua's own directory
     t.eq(vim.g.x_with_override, tmp, "per-call dir did not win over the default")
-    t.eq(vim.g.x_with_cmd, deep, "bundle defaults did not reach cmd()")
 end)
 
 t.test("with() stacks: closer wins key by key, env variables accumulate", function()
@@ -376,17 +376,6 @@ t.test("out()'s failure message carries stderr", function()
     t.ok(msg:find("detail", 1, true), "stderr not reported: " .. msg)
 end)
 
--- --- cmd values as tasks ----------------------------------------------------
-t.test("a cmd value invoked as a task streams instead of capturing", function()
-    run("streamer")
-    local buf = term.buf("streamer")
-    t.ok(buf, "cmd task produced no output buffer")
-    t.ok(vim.wait(2000, function()
-        local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-        return text:find("from-cmd", 1, true) ~= nil
-    end, 10), "cmd output never reached the buffer")
-end)
-
 t.test("sh() streams stderr into the buffer too (pty covers stdout only)", function()
     run("stderr_stream")
     local buf = assert(term.buf("stderr_stream"), "task produced no output buffer")
@@ -398,6 +387,7 @@ end)
 
 -- --- terminal buffer placement ----------------------------------------------
 t.test("a re-run replaces the buffer in every window showing it, without stealing focus", function()
+    run("streamer")
     local old = assert(term.buf("streamer"))
     vim.cmd("split")
     local watcher = vim.api.nvim_get_current_win()
@@ -518,8 +508,8 @@ t.test("a file that raises after map() does not leak the mapping", function()
     end)
 end)
 
--- The contract is "every callable own-global is a task". These pin its edges:
--- what counts as callable, and what a file can do to the primitives it inherits.
+-- The contract is "every function own-global is a task". These pin its edges:
+-- what does not count, and what a file can do to the primitives it inherits.
 write(vim.fs.joinpath(tmp, "empty", ".litre.lua"), "")
 
 write(vim.fs.joinpath(tmp, "callable", ".litre.lua"), [[
@@ -550,10 +540,10 @@ t.test("an empty .litre.lua contributes nothing and says nothing", function()
     end)
 end)
 
-t.test("a callable table is a task; a plain table and a scalar are not", function()
+t.test("only functions are tasks: a __call table, a plain table, a scalar are not", function()
     at(vim.fs.joinpath(tmp, "callable"), function()
         local d = discover.load()
-        t.ok(find(d, "callable_task"), "a __call table was not treated as a task")
+        t.ok(not find(d, "callable_task"), "a __call table became a task")
         t.ok(not find(d, "plain_table"), "a plain table became a task")
         t.ok(not find(d, "scalar"), "a number became a task")
     end)

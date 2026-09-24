@@ -48,8 +48,7 @@ exported next to lowercase helpers. A lowercase task still runs.
 | --- | --- |
 | `l.sh(cmd, opts?)` | stream into the task's `litre://` buffer; returns exit code |
 | `l.out(cmd, opts?)` | capture silently; returns trimmed stdout (+ code) |
-| `l.cmd(c, opts?)` | callable value: `c()` captures like `out`; invoked as a task it streams |
-| `l.with { dir=, env= }` | defaults bundle: `b.sh`/`b.out`/`b.cmd` with those opts merged in; `b.with { ... }` stacks another bundle on top (closer wins key by key, `env` variables accumulate) |
+| `l.with { dir=, env= }` | defaults bundle: `b.sh`/`b.out` with those opts merged in; `b.with { ... }` stacks another bundle on top (closer wins key by key, `env` variables accumulate) |
 | `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
 | `l.input(prompt_or_opts)` | `vim.ui.input` likewise |
 | `l.param(name, { ... })` | declare a param; returns its current value (top level only). A function instead of the list is run as a task by `V` and its result picked from |
@@ -60,7 +59,7 @@ The calls are annotated in `lib.lua`, so lua-ls gives hover, signature help
 and completion on `l.` once it can see this checkout (lazydev adds it on the
 `require`).
 
-- `cmd`/`sh`/`out` take a **string** (runs via `<shell> -c`, default fish:
+- `sh`/`out` take a **string** (runs via `<shell> -c`, default fish:
   pipes, `$VAR`, globs work) or an **argv table** (no shell, no quoting).
 - `opts.dir` is relative to the defining `.litre.lua`'s directory, which is also
   the default. There is no `cd` -- directory is data on the call (the os/exec
