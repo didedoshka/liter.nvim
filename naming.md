@@ -6,16 +6,15 @@ return null; be concise; mimic the surrounding codebase) and YT's own process vo
 (`TShellCommand::Run`, `TSubprocess::Execute` returning `Output`, `TProcessBase::Spawn`, `Kill`,
 `Terminate`, `RunSubprocess`). The "surrounding codebase" for a `.litre.lua` is also Neovim's
 Lua API (`vim.system`, `vim.ui.select`, `vim.ui.input`, `vim.keymap.set`), so mimicry pulls two
-ways; the bundles at the end make that choice once instead of nine times.
+ways; the bundles at the end make that choice once instead of eight times.
 
 Two rules applied throughout:
 
-- A function that *does* something is a verb. A constructor of a value keeps the noun of what it
-  builds (YT's types are `TSubprocess`, `TShellCommand`; a Lua constructor is `vim.system`,
-  `Job:new`).
+- A function that *does* something is a verb. `with`, the one value constructor, keeps the name
+  decided today.
 - The failure vocabulary stays in options and docs, not names: `run` raises on nonzero exit
   unless `check = false`, `pick`/`ask` return nil on cancel. YT would spell that `RunOrThrow`
-  and `TryPick`; nine primitives typed in every task file cannot afford it.
+  and `TryPick`; eight primitives typed in every task file cannot afford it.
 
 ## Per primitive
 
@@ -43,16 +42,6 @@ Runs silently, returns trimmed stdout and the exit code.
 | `execute` | YT's `Execute` returns `Output`        | says nothing about silence             |
 | `read`    | verb                                   | reads as file reading                  |
 | `out`     | terse                                  | neither a verb nor a word              |
-
-### `cmd(c, opts)`
-
-A callable command value: `c()` captures, run as a task it streams.
-
-| candidate | for                           | against                     |
-| --------- | ----------------------------- | --------------------------- |
-| `command` | full word; YT `TShellCommand` | none                        |
-| `bind`    | YT's `BIND` makes a callable  | in Neovim "bind" means keys |
-| `cmd`     | terse                         | abbreviation                |
 
 ### `with(defaults)`
 
@@ -117,11 +106,11 @@ Gives a task a layer key.
 - **B, terse**: A with the one abbreviation everyone reads.
 - **C, neovim mirror**: named after the API underneath each call.
 
-| set | sh  | out     | cmd     | with | pick   | input | param     | debug | map |
-| --- | --- | ------- | ------- | ---- | ------ | ----- | --------- | ----- | --- |
-| A   | run | capture | command | with | pick   | ask   | parameter | debug | map |
-| B   | run | capture | command | with | pick   | ask   | param     | debug | map |
-| C   | run | output  | command | with | select | input | param     | debug | map |
+| set | sh  | out     | with | pick   | input | param     | debug | map |
+| --- | --- | ------- | ---- | ------ | ----- | --------- | ----- | --- |
+| A   | run | capture | with | pick   | ask   | parameter | debug | map |
+| B   | run | capture | with | pick   | ask   | param     | debug | map |
+| C   | run | output  | with | select | input | param     | debug | map |
 
 Recommendation: **A**. It is what the guide says, and the only cost over B is `parameter`,
 typed once per file at top level. B if that word annoys you at the call site. C only if you want
@@ -151,7 +140,7 @@ l.map("r", Run)
 and a capture, in any set: `local rev = l.capture("git rev-parse --short HEAD")` (C:
 `l.output(...)`).
 
-Every set renames `sh`, `out`, `cmd` and nothing in the runner: the internal `runner.run` is not
+Every set renames `sh` and `out` and nothing in the runner: the internal `runner.run` is not
 the public `l.run`, they live in different modules. A task named `Run` next to `b.run` is fine
 too, the case tells them apart, as in the snippet above.
 
