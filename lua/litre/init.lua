@@ -1,6 +1,6 @@
 -- Public surface: the .litre.lua API (`local l = require("litre")` at the top
--- of every file gives l.sh, l.out, l.with, l.pick, l.input, l.param,
--- l.debug, l.map -- a module, not injected globals, so lua-ls types the calls)
+-- of every file gives l.command, l.with, l.pick, l.input, l.param, l.debug,
+-- l.map -- a module, not injected globals, so lua-ls types the calls)
 -- plus the commands and the layer. Command index:
 --   :Litre [task]       run a task by id (or bare name), no arg opens the picker
 --   :LitreConfig        edit the innermost .litre.lua (path at cwd when none exists)
@@ -14,7 +14,7 @@
 local M = {}
 
 local lib = require("litre.lib")
-M.sh, M.out, M.with = lib.sh, lib.out, lib.with
+M.command, M.with = lib.command, lib.with
 M.pick, M.input, M.param, M.debug, M.map = lib.pick, lib.input, lib.param, lib.debug, lib.map
 
 local verbs -- filled below; load_tasks() strips map() keys that collide with them
@@ -92,7 +92,7 @@ function M.pick_param()
         return cur or "?"
     end
     -- a function-valued list runs as a task of its own: the runner gives it
-    -- the coroutine that lets it sh/out/pick, and its output a litre:// buffer
+    -- the coroutine that lets it run/pick, and its output a litre:// buffer
     local function choose_computed(p)
         local runner = require("litre.runner")
         local last = runner.last

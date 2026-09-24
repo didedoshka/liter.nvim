@@ -6,9 +6,9 @@
 -- the very first call runs cmake itself.
 --
 --   local target = l.param("target", function() return cm.executables("build") end)
---   b.sh("./" .. cm.executable_path("build", target))
+--   b.command("./" .. cm.executable_path("build", target)):run()
 --
--- Both take the build dir the way sh's opts.dir does: relative to the calling
+-- Both take the build dir the way command's opts.dir does: relative to the calling
 -- task's .litre.lua, so they only work inside a task (executables() runs
 -- inside the V picker's task; executable_path() inside Build/Run/Debug).
 local M = {}
@@ -81,7 +81,7 @@ function M.executables(build_dir)
     if not exes then
         vim.fn.mkdir(vim.fs.joinpath(build, ".cmake", "api", "v1", "query"), "p")
         vim.fn.writefile({}, vim.fs.joinpath(build, ".cmake", "api", "v1", "query", "codemodel-v2"))
-        lib.sh({ "cmake", build })
+        lib.command({ "cmake", build }):run()
         exes = read_executables(build) or {}
     end
     local names = vim.tbl_keys(exes)

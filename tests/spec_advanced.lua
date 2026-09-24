@@ -108,11 +108,11 @@ write(vim.fs.joinpath(tmp, ".litre.lua"), [[
 local l = require("litre")
 shared_greeting = "hi"
 function outer_task()
-    vim.g.x_outer = l.out({ "pwd" })
+    vim.g.x_outer = l.command({ "pwd" }):run("captured")
 end
 function slow_outer()
-    l.out({ "sleep", "0.15" })
-    vim.g.x_slow_outer = l.out({ "pwd" })
+    l.command({ "sleep", "0.15" }):run("captured")
+    vim.g.x_slow_outer = l.command({ "pwd" }):run("captured")
 end
 ]])
 
@@ -120,29 +120,29 @@ write(vim.fs.joinpath(work, ".litre.lua"), [[
 local l = require("litre")
 local level = l.param("level", { "-O2", "-O3" })
 function slow_inner()
-    l.out({ "sleep", "0.05" })
-    vim.g.x_slow_inner = l.out({ "pwd" })
+    l.command({ "sleep", "0.05" }):run("captured")
+    vim.g.x_slow_inner = l.command({ "pwd" }):run("captured")
 end
 function withbundle()
     local b = l.with({ dir = "deep", check = false })
-    vim.g.x_with_dir = b.out({ "pwd" })
-    vim.g.x_with_check = select(2, b.out({ "false" }))
-    vim.g.x_with_override = b.out({ "pwd" }, { dir = ".." })
+    vim.g.x_with_dir = b.command({ "pwd" }):run("captured")
+    vim.g.x_with_check = select(2, b.command({ "false" }):run("captured"))
+    vim.g.x_with_override = b.command({ "pwd" }, { dir = ".." }):run("captured")
 end
 function withstack()
     local b = l.with({ dir = "deep", env = { X_A = "a", X_B = "outer" } })
     local s = b.with({ env = { X_B = "inner", X_C = "c" } })
-    vim.g.x_stack_dir = s.out({ "pwd" })
-    vim.g.x_stack_env = s.out("echo $X_A $X_B $X_C")
-    vim.g.x_stack_call = s.out("echo $X_A $X_B $X_C", { env = { X_C = "call" } })
-    vim.g.x_stack_dir2 = s.with({ dir = ".." }).out({ "pwd" })
-    vim.g.x_stack_base = b.out("echo $X_A $X_B ${X_C:-unset}")
+    vim.g.x_stack_dir = s.command({ "pwd" }):run("captured")
+    vim.g.x_stack_env = s.command("echo $X_A $X_B $X_C"):run("captured")
+    vim.g.x_stack_call = s.command("echo $X_A $X_B $X_C", { env = { X_C = "call" } }):run("captured")
+    vim.g.x_stack_dir2 = s.with({ dir = ".." }).command({ "pwd" }):run("captured")
+    vim.g.x_stack_base = b.command("echo $X_A $X_B ${X_C:-unset}"):run("captured")
 end
 function shellstr()
-    vim.g.x_shell = l.out("echo one; echo two")
+    vim.g.x_shell = l.command("echo one; echo two"):run("captured")
 end
 function argvliteral()
-    vim.g.x_argv = l.out({ "echo", "$HOME and; echo x" })
+    vim.g.x_argv = l.command({ "echo", "$HOME and; echo x" }):run("captured")
 end
 function inherits()
     vim.g.x_inherit = shared_greeting .. level
@@ -154,19 +154,19 @@ function inputy()
     vim.g.x_input = tostring(l.input("name: "))
 end
 function nobinary()
-    l.sh({ "litre-no-such-binary-zzz" })
+    l.command({ "litre-no-such-binary-zzz" }):run()
 end
 function badout()
-    l.out({ "litre-no-such-binary-zzz" })
+    l.command({ "litre-no-such-binary-zzz" }):run("captured")
 end
 function stderr_in_error()
-    l.out({ "sh", "-c", "echo detail 1>&2; exit 3" })
+    l.command({ "sh", "-c", "echo detail 1>&2; exit 3" }):run("captured")
 end
 function busy()
-    l.out({ "sleep", "0.4" })
+    l.command({ "sleep", "0.4" }):run("captured")
 end
 function hang()
-    l.sh({ "sleep", "30" })
+    l.command({ "sleep", "30" }):run()
 end
 function dbgfn()
     l.debug("fn", { program = "bin/app", dir = "deep" })
@@ -179,14 +179,14 @@ function badparam()
 end
 function stderr_stream()
     -- the marker is built at runtime so the echoed `$ cmd` header can't match it
-    l.sh({ "sh", "-c", "echo err-lin''e 1>&2" })
+    l.command({ "sh", "-c", "echo err-lin''e 1>&2" }):run()
 end
 function twostep()
-    l.sh({ "sleep", "0.15" })
-    l.sh({ "printf", "second-half" })
+    l.command({ "sleep", "0.15" }):run()
+    l.command({ "printf", "second-half" }):run()
 end
 function streamer()
-    l.sh({ "printf", "from-streamer" })
+    l.command({ "printf", "from-streamer" }):run()
 end
 l.map("b", withbundle)
 ]])
@@ -354,21 +354,21 @@ end)
 vim.ui.select, vim.ui.input = ui_select, ui_input
 
 -- --- failure paths ----------------------------------------------------------
-t.test("sh() on a missing binary aborts with a spawn message", function()
+t.test("run() on a missing binary aborts with a spawn message", function()
     t.notified = {}
     run("nobinary")
     t.ok(notified("cannot run litre-no-such-binary-zzz"),
         "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.test("out() on a missing binary aborts the same way", function()
+t.test("run(\"captured\") on a missing binary aborts the same way", function()
     t.notified = {}
     run("badout")
     t.ok(notified("cannot run litre-no-such-binary-zzz"),
         "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.test("out()'s failure message carries stderr", function()
+t.test("run(\"captured\")'s failure message carries stderr", function()
     t.notified = {}
     run("stderr_in_error")
     local msg = notified("command failed (exit 3)")
@@ -376,7 +376,7 @@ t.test("out()'s failure message carries stderr", function()
     t.ok(msg:find("detail", 1, true), "stderr not reported: " .. msg)
 end)
 
-t.test("sh() streams stderr into the buffer too (pty covers stdout only)", function()
+t.test("run() streams stderr into the buffer too (pty covers stdout only)", function()
     run("stderr_stream")
     local buf = assert(term.buf("stderr_stream"), "task produced no output buffer")
     t.ok(vim.wait(2000, function()
@@ -408,15 +408,15 @@ t.test("a re-run replaces the buffer in every window showing it, without stealin
     vim.cmd("only")
 end)
 
-t.test("a deleted output buffer is reopened by the task's next sh()", function()
+t.test("a deleted output buffer is reopened by the task's next run()", function()
     local task = assert(find(discover.load(), "twostep"))
     runner.run(task)
     local first = term.buf("twostep")
-    t.ok(first, "first sh() opened no buffer")
+    t.ok(first, "first run() opened no buffer")
     vim.api.nvim_buf_delete(assert(first), { force = true })
     t.ok(wait_done(task), "twostep did not finish")
     local buf = term.buf("twostep")
-    t.ok(buf, "the second sh() did not reopen a buffer")
+    t.ok(buf, "the second run() did not reopen a buffer")
     t.ok(vim.wait(2000, function()
         local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
         return text:find("second-half", 1, true) ~= nil
@@ -519,11 +519,11 @@ scalar = 5
 ]])
 
 write(vim.fs.joinpath(tmp, "shadow", ".litre.lua"), [[
-function sh()
-    vim.g.x_shadowed_sh = "mine"
+function command()
+    vim.g.x_shadowed_command = "mine"
 end
-function uses_sh()
-    sh({ "true" })
+function uses_command()
+    command({ "true" })
 end
 ]])
 
@@ -553,13 +553,13 @@ t.test("a global named after a primitive is just a task: nothing is injected", f
     at(vim.fs.joinpath(tmp, "shadow"), function()
         t.notified = {}
         local d = discover.load()
-        t.ok(find(d, "sh"), "the global is not itself a task")
+        t.ok(find(d, "command"), "the global is not itself a task")
         t.eq(t.notified, {}, "a plain global should load silently")
         -- and the file's own calls resolve to it, not to lib.sh: the task
         -- below would otherwise need a coroutine to run at all
-        vim.g.x_shadowed_sh = nil
-        assert(find(d, "uses_sh")).fn()
-        t.eq(vim.g.x_shadowed_sh, "mine", "sh() did not resolve to the global")
+        vim.g.x_shadowed_command = nil
+        assert(find(d, "uses_command")).fn()
+        t.eq(vim.g.x_shadowed_command, "mine", "sh() did not resolve to the global")
     end)
 end)
 
@@ -804,7 +804,7 @@ t.test("a function-valued param runs as a task under V and persists the pick", f
     write(file, [[
 local l = require("litre")
 local which = l.param("which", function()
-    return vim.split(l.out({ "printf", "one\nthree\ntwo" }), "\n")
+    return vim.split(l.command({ "printf", "one\nthree\ntwo" }):run("captured"), "\n")
 end)
 function report()
     vim.g.x_which = tostring(which)
@@ -910,13 +910,27 @@ t.test("an unknown template aborts with a message naming setup{}", function()
 end)
 
 -- --- primitives outside a task ----------------------------------------------
-t.test("out/pick/input/debug all refuse to run outside a task", function()
+t.test("run(captured)/pick/input all refuse to run outside a task", function()
     local lib = require("litre.lib")
-    for _, name in ipairs({ "out", "pick", "input" }) do
-        local ok, err = pcall(lib[name], { "true" })
+    local ok, err = pcall(function()
+        return lib.command({ "true" }):run("captured")
+    end)
+    t.eq(ok, false, "captured run did not refuse")
+    t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
+    for _, name in ipairs({ "pick", "input" }) do
+        ok, err = pcall(lib[name], { "true" })
         t.eq(ok, false, name .. " did not refuse")
         t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
     end
+end)
+
+t.test("run() rejects an unknown mode before spawning anything", function()
+    local ok, err = pcall(function()
+        ---@diagnostic disable-next-line: param-type-mismatch
+        return require("litre.lib").command({ "true" }):run("loud")
+    end)
+    t.eq(ok, false)
+    t.ok(tostring(err):find('"live" or "captured"', 1, true), tostring(err))
 end)
 
 t.test("map() outside a load is an error, not a silent no-op", function()

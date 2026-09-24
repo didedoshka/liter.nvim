@@ -4,7 +4,7 @@
 -- and it stays correct even while several tasks sit suspended at once.
 --
 -- This is the answer to function color: any plain Lua function called from a
--- task can use sh()/out()/pick() -- the yield propagates through it invisibly.
+-- task can use run()/pick() -- the yield propagates through it invisibly.
 -- The one rule bought with that: task functions only run through M.run.
 
 ---@class litre.Task
@@ -16,7 +16,7 @@
 ---@field co? thread
 ---@field chan? integer terminal channel of this run's output buffer
 ---@field proc? { kill: fun(self, signal: string|integer) } process this run waits on (vim.system handle or sh's pty-job wrapper)
----@field killed? boolean set by M.kill; sh/out turn the exit into "interrupted"
+---@field killed? boolean set by M.kill; run turns the exit into "interrupted"
 
 local M = {}
 
@@ -24,7 +24,7 @@ M.current = nil ---@type litre.Task|nil
 M.last = nil ---@type litre.Task|nil last started task, for re-run and output
 local running = {} ---@type table<string, litre.Task> id -> task while its coroutine is alive
 
--- sh/out raise this on nonzero exit so failures abort the task with a clean
+-- run raises this on nonzero exit so failures abort the task with a clean
 -- message instead of a traceback.
 local ABORT = {}
 
@@ -56,7 +56,7 @@ function M.run(task)
     end
     running[task.id] = task
     M.last = task
-    task.chan = nil -- each run gets a fresh output buffer on first sh()
+    task.chan = nil -- each run gets a fresh output buffer on the first live run()
     task.proc, task.killed = nil, nil
     task.co = coroutine.create(task.fn)
     M.resume(task)
@@ -75,7 +75,7 @@ function M.running_tasks()
     return list
 end
 
----Interrupt a running task: SIGTERM its current process; sh/out see the flag
+---Interrupt a running task: SIGTERM its current process; run sees the flag
 ---and abort with "interrupted" instead of "command failed". A task suspended
 ---in a prompt has no process -- cancelling the prompt is the way out there.
 ---@param task litre.Task

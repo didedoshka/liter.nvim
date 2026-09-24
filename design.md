@@ -438,6 +438,20 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     special case, the bundle's `cmd`, and discovery's `__call`-table rule:
     a task is a function, nothing else.
 
+21. **`command(c, opts):run(mode)` replaces `sh`/`out` (2026-09-24):** the
+    two colours were two functions whose names never satisfied anyone --
+    `sh` lied for argv tables, `out` was no verb, `capture`/`read` hid that
+    they run the program. Go's real shape is a value that runs nothing until
+    `Run`, with the output's fate set beforehand; pytest names the two fates
+    "live" and "captured" (Bazel: "streamed"; language libraries: inherit/
+    pipe, wrong here since a live run gets its own pty, not the parent's
+    terminal). So: one constructor, one verb, `mode` picks how it runs,
+    default live. The value is a plain table with public `cmd`/`opts`: a
+    helper can derive a new command (env, retry) -- the reuse and decoration
+    the deleted `cmd` (20) promised without its who-calls ambiguity, since
+    nothing runs until `:run()`. lua-ls: live is the primary signature,
+    captured an `@overload`; a wrong literal is a diagnostic at edit time.
+
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

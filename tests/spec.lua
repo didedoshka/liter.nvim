@@ -49,27 +49,27 @@ function build()
 end
 l.map("b", build)
 function compose()
-    vim.g.litre_compose = "haha" .. l.out({ "echo", "hehe" })
+    vim.g.litre_compose = "haha" .. l.command({ "echo", "hehe" }):run("captured")
 end
 function stream()
-    l.sh({ "printf", "x\ny\n" })
+    l.command({ "printf", "x\ny\n" }):run()
 end
 function boom()
-    l.sh({ "false" })
+    l.command({ "false" }):run()
 end
 function soft()
-    vim.g.litre_soft = l.sh({ "false" }, { check = false })
+    vim.g.litre_soft = l.command({ "false" }, { check = false }):run()
 end
 function sleepy()
-    l.sh({ "sleep", "100" })
+    l.command({ "sleep", "100" }):run()
     vim.g.litre_sleepy_done = 1
 end
 function feed()
-    vim.g.litre_fed = l.out({ "cat" }, { stdin = "picked-b" })
+    vim.g.litre_fed = l.command({ "cat" }, { stdin = "picked-b" }):run("captured")
 end
 function where()
-    vim.g.litre_where = l.out({ "pwd" })
-    vim.g.litre_where_up = l.out({ "pwd" }, { dir = ".." })
+    vim.g.litre_where = l.command({ "pwd" }):run("captured")
+    vim.g.litre_where_up = l.command({ "pwd" }, { dir = ".." }):run("captured")
 end
 function dbg()
     l.debug("tpl", { program = "bin/app", args = { "-x" } })
@@ -135,14 +135,14 @@ t.test("persisted param value wins on the next load", function()
 end)
 
 -- --- shell colors -----------------------------------------------------------
-t.test("out() captures trimmed stdout and composes", function()
+t.test("run(\"captured\") returns trimmed stdout and composes", function()
     local task = find(d, "compose")
     runner.run(task)
     t.ok(wait_done(task), "compose did not finish")
     t.eq(vim.g.litre_compose, "hahahehe")
 end)
 
-t.test("out() dir option resolves relative to the .litre.lua", function()
+t.test("command() dir option resolves relative to the .litre.lua", function()
     local task = find(d, "where")
     runner.run(task)
     t.ok(wait_done(task), "where did not finish")
@@ -157,7 +157,7 @@ t.test("opts.stdin feeds the command's standard input", function()
     t.eq(vim.g.litre_fed, "picked-b")
 end)
 
-t.test("sh() streams into a litre:// terminal buffer with exit marker", function()
+t.test("run() streams into a litre:// terminal buffer with exit marker", function()
     local task = find(d, "stream")
     runner.run(task)
     t.ok(wait_done(task), "stream did not finish")
@@ -204,7 +204,7 @@ t.test("check = false returns the code instead", function()
 end)
 
 -- --- kill -------------------------------------------------------------------
-t.test("kill interrupts a running sh(); the task aborts as interrupted", function()
+t.test("kill interrupts a running run(); the task aborts as interrupted", function()
     local task = find(d, "sleepy")
     runner.run(task)
     t.ok(vim.wait(2000, function()
@@ -236,8 +236,10 @@ t.test("a killed task can be re-run at once", function()
     t.ok(wait_done(task), "second kill did not end the task")
 end)
 
-t.test("sh() outside a task errors clearly", function()
-    local ok, err = pcall(require("litre.lib").sh, { "true" })
+t.test("run() outside a task errors clearly", function()
+    local ok, err = pcall(function()
+        return require("litre.lib").command({ "true" }):run()
+    end)
     t.eq(ok, false)
     t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
 end)

@@ -1,19 +1,18 @@
 -- The .litre.lua standard library, re-exported by require("litre") -- files
--- reach it as `l.sh` etc. The annotations here are what lua-ls shows there.
+-- reach it as `l.command` etc. The annotations here are what lua-ls shows there.
 --
 -- Modelled on Go's os/exec: there is no ambient shell state -- no cd, no
--- exported variables. A command carries its own dir/env, and running it
--- mutates nothing outside itself. Default dir is the directory of the
--- .litre.lua that defines the task.
---
--- Two colors of shell call, deliberately two functions:
---   sh(cmd, opts)   streams into the task's litre:// buffer, returns exit code
---   out(cmd, opts)  captures silently, returns trimmed stdout ($(...) analogue)
+-- exported variables. `command(c, opts)` is a value that runs nothing until
+-- `:run(mode)`, carries its own dir/env, and running it mutates nothing
+-- outside itself. Default dir is the directory of the .litre.lua that
+-- defines the task. Two modes, one verb (pytest's words):
+--   :run()           "live": pty into the task's litre:// buffer, returns exit code
+--   :run("captured") pipes, returns trimmed stdout and the code ($(...) analogue)
 -- Both raise on nonzero exit unless { check = false }: chains read as
--- `build(); run()` and stop at the first failure, set -e style.
+-- `Build(); Run()` and stop at the first failure, set -e style.
 --
--- cmd is a string -> `<config.shell> -c` runs it (pipes, $VAR, globs work);
--- cmd is a table  -> direct argv, no shell, no quoting pitfalls.
+-- c is a string -> `<config.shell> -c` runs it (pipes, $VAR, globs work);
+-- c is a table  -> direct argv, no shell, no quoting pitfalls.
 local config = require("litre.config")
 local runner = require("litre.runner")
 local state = require("litre.state")
@@ -27,9 +26,8 @@ local M = {}
 ---@field check? boolean false: return the exit code instead of raising on nonzero
 ---@field stdin? string|string[] feed standard input; runs on plain pipes, not the pty
 
----@class litre.With a defaults bundle: `sh`/`out` with the bundle's opts merged in
----@field sh fun(c: string|string[], opts?: litre.Opts): integer
----@field out fun(c: string|string[], opts?: litre.Opts): string, integer
+---@class litre.With a defaults bundle: `command` with the bundle's opts merged in
+---@field command fun(c: string|string[], opts?: litre.Opts): litre.Command
 ---@field with fun(more?: litre.Opts): litre.With a new bundle with `more` merged on top
 
 local function argv(c)
@@ -57,20 +55,19 @@ local function resolve_dir(ctx, opts)
     return vim.fs.joinpath(ctx.dir, d)
 end
 
--- sh runs the command on a real pty via jobstart: the program sees a tty on
--- every fd (stderr is merged into the pty), so ya/cmake/git color and draw
+-- A live run is on a real pty via jobstart: the program sees a tty on every
+-- fd (stderr is merged into the pty), so ya/cmake/git color and draw
 -- progress bars as in a terminal. vim.system cannot do this -- it has no pty
 -- support at all, any `pty = true` is silently ignored and every fd is a
 -- plain pipe (measured; why v2 streamed monochrome).
 -- opts.stdin is the exception and takes a vim.system pipe path: a pty cannot
 -- deliver EOF (a stdin-fed `wc -l` hangs forever, measured) and echoes the
 -- fed input back into the output. Filters get pipes; terminals get the pty.
----@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
----@param opts? litre.Opts
+---@param c string|string[]
+---@param opts litre.Opts
 ---@return integer code
-function M.sh(c, opts)
-    opts = opts or {}
-    local ctx = runner.ctx("sh")
+local function run_live(c, opts)
+    local ctx = runner.ctx("run")
     local dir = resolve_dir(ctx, opts)
     -- term.buf() check: a :bd!'d output buffer takes its channel with it, and
     -- the rest of the task would otherwise stream into the void
@@ -169,13 +166,12 @@ function M.sh(c, opts)
     return code
 end
 
----@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
----@param opts? litre.Opts
+---@param c string|string[]
+---@param opts litre.Opts
 ---@return string stdout trimmed
 ---@return integer code
-function M.out(c, opts)
-    opts = opts or {}
-    local ctx = runner.ctx("out")
+local function run_captured(c, opts)
+    local ctx = runner.ctx("run")
     local dir = resolve_dir(ctx, opts)
     local ok, proc = pcall(vim.system, argv(c),
         { cwd = dir, env = opts.env, stdin = opts.stdin, text = true },
@@ -201,13 +197,46 @@ function M.out(c, opts)
     return stdout, res.code
 end
 
+---@class litre.Command a command and its options; runs nothing until :run()
+---@field cmd string|string[] shell string (`<shell> -c`) or argv table (no shell)
+---@field opts litre.Opts
+local Command = {}
+Command.__index = Command
+
+-- "live" (default): on a pty into the task's litre:// buffer, returns the
+-- exit code. "captured": on pipes, nothing shown, returns trimmed stdout and
+-- the code. Nonzero exit raises either way unless opts.check == false.
+---@param mode? "live"
+---@return integer code
+---@overload fun(self: litre.Command, mode: "captured"): string, integer
+function Command:run(mode)
+    mode = mode or "live"
+    if mode == "live" then
+        -- lua-ls checks this branch against the overload's two returns too
+        ---@diagnostic disable-next-line: return-type-mismatch
+        return run_live(self.cmd, self.opts)
+    elseif mode == "captured" then
+        return run_captured(self.cmd, self.opts)
+    end
+    error(('run: mode must be "live" or "captured", got %s'):format(vim.inspect(mode)), 2)
+end
+
+-- A plain table: `cmd` and `opts` are public, so a helper can derive a new
+-- command from one it is handed (a wrapper adds env, a retry re-runs it).
+---@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
+---@param opts? litre.Opts
+---@return litre.Command
+function M.command(c, opts)
+    return setmetatable({ cmd = c, opts = opts or {} }, Command)
+end
+
 -- Immutable defaults bundle -- the os/exec answer to `cd`. Stackable: b.with
 -- returns a new bundle with more defaults on top. The closer setting wins key
 -- by key (a per-call dir replaces the bundle's, it does not append to it);
 -- `env` is the exception, its variables accumulate through the stack.
 --   local b = l.with { dir = "build" }
---   b.sh("cmake --build .")
---   b.with({ env = { ASAN_OPTIONS = "detect_leaks=0" } }).sh("./main")
+--   b.command("cmake --build ."):run()
+--   b.with({ env = { ASAN_OPTIONS = "detect_leaks=0" } }).command("./main"):run()
 ---@param defaults? litre.Opts
 ---@return litre.With
 function M.with(defaults)
@@ -221,11 +250,8 @@ function M.with(defaults)
         return merged
     end
     return {
-        sh = function(c, opts)
-            return M.sh(c, merge(opts))
-        end,
-        out = function(c, opts)
-            return M.out(c, merge(opts))
+        command = function(c, opts)
+            return M.command(c, merge(opts))
         end,
         with = function(more)
             return M.with(merge(more))
@@ -281,7 +307,7 @@ end
 -- register while discovery runs, so the picker could not see it -- a trap.
 --
 -- A function instead of a list is not called here (top level runs on every
--- load): the V picker runs it as a task, so it may sh/out/pick like any task
+-- load): the V picker runs it as a task, so it may run/pick like any task
 -- body, and picks from what it returns. No first option then -- nil until a
 -- value has been chosen once.
 ---@param name string

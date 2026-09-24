@@ -6,7 +6,7 @@ return null; be concise; mimic the surrounding codebase) and YT's own process vo
 (`TShellCommand::Run`, `TSubprocess::Execute` returning `Output`, `TProcessBase::Spawn`, `Kill`,
 `Terminate`, `RunSubprocess`). The "surrounding codebase" for a `.litre.lua` is also Neovim's
 Lua API (`vim.system`, `vim.ui.select`, `vim.ui.input`, `vim.keymap.set`), so mimicry pulls two
-ways; the bundles at the end make that choice once instead of eight times.
+ways; the bundles at the end make that choice once instead of three times.
 
 Two rules applied throughout:
 
@@ -14,34 +14,13 @@ Two rules applied throughout:
   decided today.
 - The failure vocabulary stays in options and docs, not names: `run` raises on nonzero exit
   unless `check = false`, `pick`/`ask` return nil on cancel. YT would spell that `RunOrThrow`
-  and `TryPick`; eight primitives typed in every task file cannot afford it.
+  and `TryPick`; the primitives typed in every task file cannot afford it.
 
 ## Per primitive
 
-### `sh(c, opts)`
+### `sh` / `out`
 
-Runs a command, streams its output into the task buffer, returns the exit code.
-
-| candidate | for                                       | against                              |
-| --------- | ----------------------------------------- | ------------------------------------ |
-| `run`     | the plain verb; YT `Run`, `RunSubprocess` | silent on where output goes          |
-| `execute` | YT `TSubprocess::Execute`                 | YT's Execute captures: that is `out` |
-| `spawn`   | YT `TProcessBase::Spawn`                  | Spawn returns a future; this waits   |
-| `stream`  | names the distinguishing feature          | "stream a build" reads oddly         |
-| `sh`      | terse, terminal habit                     | abbreviation; argv skips the shell   |
-| `shell`   | full word                                 | same lie as `sh` for argv tables     |
-
-### `out(c, opts)`
-
-Runs silently, returns trimmed stdout and the exit code.
-
-| candidate | for                                    | against                                |
-| --------- | -------------------------------------- | -------------------------------------- |
-| `capture` | verb; design.md's word for this colour | none                                   |
-| `output`  | reads like `$()` at the call site      | noun; the guide would say `get_output` |
-| `execute` | YT's `Execute` returns `Output`        | says nothing about silence             |
-| `read`    | verb                                   | reads as file reading                  |
-| `out`     | terse                                  | neither a verb nor a word              |
+Decided (design.md 21): `command(c, opts):run()` and `:run("captured")`. Nothing left to name.
 
 ### `with(defaults)`
 
@@ -106,16 +85,16 @@ Gives a task a layer key.
 - **B, terse**: A with the one abbreviation everyone reads.
 - **C, neovim mirror**: named after the API underneath each call.
 
-| set | sh  | out     | with | pick   | input | param     | debug | map |
-| --- | --- | ------- | ---- | ------ | ----- | --------- | ----- | --- |
-| A   | run | capture | with | pick   | ask   | parameter | debug | map |
-| B   | run | capture | with | pick   | ask   | param     | debug | map |
-| C   | run | output  | with | select | input | param     | debug | map |
+| set | pick   | input | param     |
+| --- | ------ | ----- | --------- |
+| A   | pick   | ask   | parameter |
+| B   | pick   | ask   | param     |
+| C   | select | input | param     |
 
 Recommendation: **A**. It is what the guide says, and the only cost over B is `parameter`,
 typed once per file at top level. B if that word annoys you at the call site. C only if you want
-`.litre.lua` to read like the rest of your Neovim config; it pays with a noun (`output`) and a
-name that collides with a Lua builtin (`select`).
+`.litre.lua` to read like the rest of your Neovim config; it pays with a name that collides with
+a Lua builtin (`select`).
 
 The cmake snippet in A:
 
@@ -127,26 +106,18 @@ local target = l.parameter("target", function() return cm.executables(dir) end)
 local b = l.with { dir = dir }
 
 function Build()
-    b.run("cmake --build . --target " .. target)
+    b.command("cmake --build . --target " .. target):run()
 end
 
 function Run()
     Build()
-    b.run("./" .. cm.executable_path(dir, target))
+    b.command("./" .. cm.executable_path(dir, target)):run()
 end
 l.map("r", Run)
 ```
 
-and a capture, in any set: `local rev = l.capture("git rev-parse --short HEAD")` (C:
-`l.output(...)`).
-
-Every set renames `sh` and `out` and nothing in the runner: the internal `runner.run` is not
-the public `l.run`, they live in different modules. A task named `Run` next to `b.run` is fine
-too, the case tells them apart, as in the snippet above.
-
 ## What a rename touches
 
-`lib.lua` (functions, `litre.With` fields, annotations), `init.lua` (re-exports, header
-comment), `cmake.lua` (calls `lib.sh`), the two specs and their fixtures, `readme.md`,
-`design.md` (a new numbered entry), the config's four snippets, and the two live files under
-`~/personal` once they are opened. Say the letter; the rest is mechanical.
+`lib.lua` (functions, annotations), `init.lua` (re-exports, header comment), the two specs and
+their fixtures, `readme.md`, `design.md` (a new numbered entry), the config's snippets, and the
+two live files under `~/personal` once they are opened. Say the letter; the rest is mechanical.
