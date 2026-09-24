@@ -48,10 +48,10 @@ exported next to lowercase helpers. A lowercase task still runs.
 | --- | --- |
 | `l.sh(cmd, opts?)` | stream into the task's `litre://` buffer; returns exit code |
 | `l.out(cmd, opts?)` | capture silently; returns trimmed stdout (+ code) |
-| `l.with { dir=, env= }` | defaults bundle: `b.sh`/`b.out` with those opts merged in; `b.with { ... }` stacks another bundle on top (closer wins key by key, `env` variables accumulate) |
+| `l.with { dir=, env= }` | defaults bundle: `b.sh`/`b.out` with those opts merged in; `b.with { ... }` stacks |
 | `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
 | `l.input(prompt_or_opts)` | `vim.ui.input` likewise |
-| `l.param(name, { ... })` | declare a param; returns its current value (top level only). A function instead of the list is run as a task by `V` and its result picked from |
+| `l.param(name, { ... })` | declare a param; returns its current value (top level only); a function list is run by `V` |
 | `l.debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
 | `l.map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
 
@@ -65,6 +65,9 @@ and completion on `l.` once it can see this checkout (lazydev adds it on the
   the default. There is no `cd` -- directory is data on the call (the os/exec
   model), so no call mutates state outside itself.
 - `opts.env` adds environment variables for that command.
+- `b.with { ... }` returns a new bundle on top of `b`: the closer setting wins
+  key by key (a stacked or per-call `dir` replaces, never appends), except
+  `env`, whose variables accumulate.
 - `opts.stdin` (string or list of lines) feeds the command's standard input --
   the anticipated-prompt pattern: ask with `pick`/`input` first, pass the
   answer here. A stdin-fed command runs on plain pipes instead of the pty (a
