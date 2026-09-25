@@ -2,7 +2,7 @@
 -- convention, not a rule, and the suite pins that lowercase still runs.
 --
 -- Second offline tier: the surface spec.lua does not reach -- the coroutine
--- runner under interleaving, with()/pick()/input(), the shell-vs-argv split,
+-- runner under interleaving, with()/pick()/ask(), the shell-vs-argv split,
 -- discovery's error paths, the x layer and the user commands, term window
 -- placement, and the params/state edge cases.
 --
@@ -118,7 +118,7 @@ end
 
 write(vim.fs.joinpath(work, ".litre.lua"), [[
 local l = require("litre")
-local level = l.param("level", { "-O2", "-O3" })
+local level = l.parameter("level", { "-O2", "-O3" })
 function slow_inner()
     l.command({ "sleep", "0.05" }):run("captured")
     vim.g.x_slow_inner = l.command({ "pwd" }):run("captured")
@@ -150,8 +150,8 @@ end
 function picky()
     vim.g.x_picked = tostring(l.pick({ "alpha", "beta" }, { prompt = "p" }))
 end
-function inputy()
-    vim.g.x_input = tostring(l.input("name: "))
+function asky()
+    vim.g.x_answer = tostring(l.ask("name: ", { default = "anon" }))
 end
 function nobinary()
     l.command({ "litre-no-such-binary-zzz" }):run()
@@ -175,7 +175,7 @@ function dbgmissing()
     l.debug("nope")
 end
 function badparam()
-    l.param("late", { "x" })
+    l.parameter("late", { "x" })
 end
 function stderr_stream()
     -- the marker is built at runtime so the echoed `$ cmd` header can't match it
@@ -295,7 +295,7 @@ t.test("outer file cannot see inner globals", function()
     t.eq(find(d, "../slow_inner"), nil)
 end)
 
--- --- pick() / input() through the coroutine ---------------------------------
+-- --- pick() / ask() through the coroutine -----------------------------------
 -- the auto-cancel baseline, to restore after a test installs its own stub
 local ui_select, ui_input = vim.ui.select, vim.ui.input
 
@@ -332,14 +332,14 @@ t.test("a cancelled pick() returns nil and the task keeps going", function()
     t.eq(t.notified, {}, "cancelling should not be an error")
 end)
 
-t.test("input() takes a bare string as the prompt, sync and async", function()
+t.test("ask() merges the prompt into opts, sync and async", function()
     ---@diagnostic disable-next-line: duplicate-set-field
     vim.ui.input = function(opts, on_confirm)
-        t.eq(opts.prompt, "name: ")
+        t.eq(opts, { prompt = "name: ", default = "anon" })
         on_confirm("typed")
     end
-    run("inputy")
-    t.eq(vim.g.x_input, "typed")
+    run("asky")
+    t.eq(vim.g.x_answer, "typed")
 
     ---@diagnostic disable-next-line: duplicate-set-field
     vim.ui.input = function(_opts, on_confirm)
@@ -347,8 +347,8 @@ t.test("input() takes a bare string as the prompt, sync and async", function()
             on_confirm(nil) -- <Esc>
         end, 10)
     end
-    run("inputy")
-    t.eq(vim.g.x_input, "nil")
+    run("asky")
+    t.eq(vim.g.x_answer, "nil")
 end)
 
 vim.ui.select, vim.ui.input = ui_select, ui_input
@@ -480,14 +480,14 @@ end)
 -- before raising is already in the collector when the error unwinds it.
 write(vim.fs.joinpath(tmp, "ghost", ".litre.lua"), [[
 local l = require("litre")
-local mode = l.param("ghost_param", { "x", "y" })
+local mode = l.parameter("ghost_param", { "x", "y" })
 l.map("g", function() end)
 function ghost_task()
 end
 error("boom after registering")
 ]])
 
-t.test("a file that raises after param() does not leak the param", function()
+t.test("a file that raises after parameter() does not leak the param", function()
     at(vim.fs.joinpath(tmp, "ghost"), function()
         t.notified = {}
         local d = discover.load()
@@ -803,7 +803,7 @@ t.test("a function-valued param runs as a task under V and persists the pick", f
     local file = vim.fs.joinpath(dyn, ".litre.lua")
     write(file, [[
 local l = require("litre")
-local which = l.param("which", function()
+local which = l.parameter("which", function()
     return vim.split(l.command({ "printf", "one\nthree\ntwo" }):run("captured"), "\n")
 end)
 function report()
@@ -910,14 +910,14 @@ t.test("an unknown template aborts with a message naming setup{}", function()
 end)
 
 -- --- primitives outside a task ----------------------------------------------
-t.test("run(captured)/pick/input all refuse to run outside a task", function()
+t.test("run(captured)/pick/ask all refuse to run outside a task", function()
     local lib = require("litre.lib")
     local ok, err = pcall(function()
         return lib.command({ "true" }):run("captured")
     end)
     t.eq(ok, false, "captured run did not refuse")
     t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
-    for _, name in ipairs({ "pick", "input" }) do
+    for _, name in ipairs({ "pick", "ask" }) do
         ok, err = pcall(lib[name], { "true" })
         t.eq(ok, false, name .. " did not refuse")
         t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
@@ -941,7 +941,7 @@ end)
 
 -- a param declared inside a task would read a value but never register while
 -- discovery runs, so the picker could not see it -- refuse instead of half-working
-t.test("param() inside a task errors instead of half-working", function()
+t.test("parameter() inside a task errors instead of half-working", function()
     t.notified = {}
     run("badparam")
     t.ok(notified("top level"), "unexpected: " .. vim.inspect(t.notified))
@@ -971,21 +971,21 @@ end)
 -- --- params write-back edges ------------------------------------------------
 t.test("write-back into an empty option list", function()
     local f = vim.fs.joinpath(tmp, "pf_empty.lua")
-    write(f, 'local m = param("mode", {})')
+    write(f, 'local m = parameter("mode", {})')
     t.ok(params.add_option(f, "mode", "first"))
-    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = param("mode", { "first" })')
+    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = parameter("mode", { "first" })')
 end)
 
 t.test("write-back keeps single-quote style and escapes the quote", function()
     local f = vim.fs.joinpath(tmp, "pf_quote.lua")
-    write(f, "local m = param('mode', { 'a' })")
+    write(f, "local m = parameter('mode', { 'a' })")
     t.ok(params.add_option(f, "mode", "it's"))
-    t.eq(table.concat(vim.fn.readfile(f), "\n"), "local m = param('mode', { 'a', 'it\\'s' })")
+    t.eq(table.concat(vim.fn.readfile(f), "\n"), "local m = parameter('mode', { 'a', 'it\\'s' })")
 end)
 
 t.test("write-back escapes backslashes", function()
     local f = vim.fs.joinpath(tmp, "pf_esc.lua")
-    write(f, 'local m = param("p", { "a" })')
+    write(f, 'local m = parameter("p", { "a" })')
     t.ok(params.add_option(f, "p", [[c:\tmp]]))
     t.ok(table.concat(vim.fn.readfile(f), "\n"):find([["c:\\tmp"]], 1, true),
         "backslash not escaped: " .. table.concat(vim.fn.readfile(f), "\n"))
@@ -993,19 +993,19 @@ end)
 
 t.test("write-back picks the named param, not the first one in the file", function()
     local f = vim.fs.joinpath(tmp, "pf_two.lua")
-    write(f, 'local a = param("aa", { "1" })\nlocal b = param("bb", { "2" })')
+    write(f, 'local a = parameter("aa", { "1" })\nlocal b = parameter("bb", { "2" })')
     t.ok(params.add_option(f, "bb", "3"))
     t.eq(vim.fn.readfile(f), {
-        'local a = param("aa", { "1" })',
-        'local b = param("bb", { "2", "3" })',
+        'local a = parameter("aa", { "1" })',
+        'local b = parameter("bb", { "2", "3" })',
     })
 end)
 
 t.test("write-back finds a param called through a module table", function()
     local f = vim.fs.joinpath(tmp, "pf_dot.lua")
-    write(f, 'local m = litre.param("mode", { "a" })')
+    write(f, 'local m = litre.parameter("mode", { "a" })')
     t.ok(params.add_option(f, "mode", "b"))
-    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = litre.param("mode", { "a", "b" })')
+    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = litre.parameter("mode", { "a", "b" })')
 end)
 
 -- The tests above pin the exact text for known-good values. This one pins the
@@ -1013,7 +1013,7 @@ end)
 -- parses as Lua afterwards and the option reads back byte-identical.
 local function roundtrip(value)
     local f = vim.fs.joinpath(tmp, "pf_rt.lua")
-    write(f, 'local m = param("p", { "a" })')
+    write(f, 'local m = parameter("p", { "a" })')
     if not params.add_option(f, "p", value) then
         return nil, "add_option refused"
     end
@@ -1023,7 +1023,7 @@ local function roundtrip(value)
         return nil, ("no longer parses (%s) -- source: %s"):format(lerr, src)
     end
     local got
-    setfenv(chunk, { param = function(_, opts) got = opts end })
+    setfenv(chunk, { parameter = function(_, opts) got = opts end })
     local ok, rerr = pcall(chunk)
     if not ok then
         return nil, "no longer runs: " .. tostring(rerr)
@@ -1050,7 +1050,7 @@ end)
 t.test("write-back finds a buffer opened through a symlinked path", function()
     local real = vim.fs.joinpath(tmp, "real")
     local target = vim.fs.joinpath(real, ".litre.lua")
-    write(target, 'local m = param("mode", { "a" })')
+    write(target, 'local m = parameter("mode", { "a" })')
     local link = vim.fs.joinpath(tmp, "link")
     assert(vim.uv.fs_symlink(real, link))
     vim.cmd.edit(vim.fs.joinpath(link, ".litre.lua"))

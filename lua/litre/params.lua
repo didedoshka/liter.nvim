@@ -1,4 +1,4 @@
--- Source write-back for param option lists: locate the `param("name", { ... })`
+-- Source write-back for param option lists: locate the `parameter("name", { ... })`
 -- call via treesitter and splice a new string literal into the table. Only
 -- literal lists can be edited -- a computed list has no node to append to,
 -- and that constraint is accepted by design.
@@ -47,7 +47,7 @@ local function find_insert(src, name, value)
         local caps = captures(query, match)
         local fname = vim.treesitter.get_node_text(caps.fname, src)
         local pname = vim.treesitter.get_node_text(caps.pname, src):sub(2, -2)
-        if (fname == "param" or fname:match("%.param$") ~= nil) and pname == name then
+        if (fname == "parameter" or fname:match("%.parameter$") ~= nil) and pname == name then
             local last = nil
             for child in caps.opts:iter_children() do
                 if child:named() then

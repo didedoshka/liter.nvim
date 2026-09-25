@@ -43,7 +43,7 @@ hidden()
 
 vim.fn.writefile(vim.split([[
 local l = require("litre")
-local level = l.param("level", { "-O2", "-O3" })
+local level = l.parameter("level", { "-O2", "-O3" })
 function build()
     vim.g.litre_result = greeting .. level
 end
@@ -282,7 +282,7 @@ t.test("write-back appends to a multiline list", function()
     vim.fn.mkdir(vim.fs.dirname(multi), "p")
     vim.fn.writefile(vim.split([[
 local l = require("litre")
-local mode = l.param("mode", {
+local mode = l.parameter("mode", {
     "debug",
     "release",
 })
@@ -309,7 +309,7 @@ t.test("write-back on a computed list fails with a message, not an edit", functi
     vim.fn.writefile(vim.split([[
 local l = require("litre")
 local opts = vim.split("a,b", ",")
-local mode = l.param("mode", opts)
+local mode = l.parameter("mode", opts)
 ]], "\n"), comp)
     t.notified = {}
     t.eq(params.add_option(comp, "mode", "c"), false)

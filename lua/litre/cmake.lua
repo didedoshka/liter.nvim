@@ -5,7 +5,7 @@
 -- `cmake --build` that re-configures refreshes the reply (measured), so only
 -- the very first call runs cmake itself.
 --
---   local target = l.param("target", function() return cm.executables("build") end)
+--   local target = l.parameter("target", function() return cm.executables("build") end)
 --   b.command("./" .. cm.executable_path("build", target)):run()
 --
 -- Both take the build dir the way command's opts.dir does: relative to the calling

@@ -9,7 +9,7 @@ decision history.
 ```lua
 -- .litre.lua
 local l = require("litre")
-local opt = l.param("optimization_level", { "-O2", "-O3", "-O0" })
+local opt = l.parameter("optimization_level", { "-O2", "-O3", "-O0" })
 local b = l.with { dir = "build" }
 
 function Build()
@@ -51,8 +51,8 @@ exported next to lowercase helpers. A lowercase task still runs.
 | `c:run("captured")` | captured: run on pipes, nothing shown; returns trimmed stdout (+ code) |
 | `l.with { dir=, env= }` | defaults bundle: `b.command` with those opts merged in; `b.with { ... }` stacks |
 | `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
-| `l.input(prompt_or_opts)` | `vim.ui.input` likewise |
-| `l.param(name, { ... })` | declare a param; returns its current value (top level only); a function list is run by `V` |
+| `l.ask(prompt, opts?)` | `vim.ui.input` likewise; `opts` are its other options (`default`, ...) |
+| `l.parameter(name, { ... })` | declare a param; returns its current value (top level only); a function list is run by `V` |
 | `l.debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
 | `l.map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
 
@@ -72,7 +72,7 @@ and completion on `l.` once it can see this checkout (lazydev adds it on the
   key by key (a stacked or per-call `dir` replaces, never appends), except
   `env`, whose variables accumulate.
 - `opts.stdin` (string or list of lines) feeds the command's standard input --
-  the anticipated-prompt pattern: ask with `pick`/`input` first, pass the
+  the anticipated-prompt pattern: `pick`/`ask` first, pass the
   answer here. A stdin-fed command runs on plain pipes instead of the pty (a
   pty cannot deliver EOF), so it sees no tty and prints no color.
 - Nonzero exit **raises**: the task stops with a notification, so
@@ -86,7 +86,7 @@ and completion on `l.` once it can see this checkout (lazydev adds it on the
   parallel. `<C-c>` (normal mode) in a task's `litre://` buffer kills it: its
   current process gets SIGTERM and the task aborts with an
   "interrupted" notification; a second `<C-c>` SIGKILLs. A task waiting in
-  `pick`/`input` has no process -- cancel the prompt instead.
+  `pick`/`ask` has no process -- cancel the prompt instead.
 - Quitting nvim SIGTERMs every running task's process (vim.system children
   would otherwise outlive nvim -- measured), so `:restart` never leaks a
   build.
@@ -102,19 +102,19 @@ the new one, otherwise it opens in the current window like any buffer (no
 floats, no owned windows). Deleting the buffer mid-run is fine: the task's
 next live `run` opens a fresh one. `<C-c>` in the buffer (normal mode) kills the
 running task, as it would in a real terminal. Programs that want stdin mid-run
-should be anticipated with `pick`/`input` in the task; genuinely interactive
+should be anticipated with `pick`/`ask` in the task; genuinely interactive
 work is what `:terminal` is for.
 
 ## Params
 
-`l.param("name", { "a", "b" })` returns the persisted selection, defaulting to
+`l.parameter("name", { "a", "b" })` returns the persisted selection, defaulting to
 the first option. Selections persist in `stdpath("data")/litre/params.json`,
 keyed by file + name. The picker's "new value..." entry writes the new option
 back into the `.litre.lua` source (treesitter finds the literal list; computed
 lists are refused with a message). If the file is open in a buffer the edit
 goes through the buffer -- unsaved changes survive -- and is written.
 
-`l.param("name", function() ... end)` never runs the function at top level.
+`l.parameter("name", function() ... end)` never runs the function at top level.
 `V` on that param runs it as a task of its own (`run`/`pick` work inside,
 output streams to a `litre://` buffer as usual) and opens the value picker on
 what it returns; no "new value..." entry. Until a value has been chosen once

@@ -281,15 +281,15 @@ function M.pick(items, opts)
     return coroutine.yield()
 end
 
----@param opts string|table the prompt, or vim.ui.input options
----@return string? value nil when cancelled
-function M.input(opts)
-    local ctx = runner.ctx("input")
-    if type(opts) == "string" then
-        opts = { prompt = opts }
-    end
+-- vim.ui.input through the coroutine, the same dance as pick.
+---@param prompt string
+---@param opts? table further vim.ui.input options (default, completion)
+---@return string? answer nil when cancelled
+function M.ask(prompt, opts)
+    local ctx = runner.ctx("ask")
+    opts = vim.tbl_extend("force", opts or {}, { prompt = prompt })
     local value, returned = nil, false
-    vim.ui.input(opts or {}, function(v)
+    vim.ui.input(opts, function(v)
         value, returned = v, true
         if coroutine.status(ctx.co) == "suspended" then
             runner.resume(ctx, v)
@@ -313,11 +313,11 @@ end
 ---@param name string
 ---@param options string[]|fun(): string[] a literal list: the picker's "new value..." writes into it
 ---@return string? value the persisted selection, else options[1] (nil for a function)
-function M.param(name, options)
+function M.parameter(name, options)
     local discover = require("litre.discover")
     local file = discover.loading
     if not file then
-        error("param() belongs at .litre.lua top level", 2)
+        error("parameter() belongs at .litre.lua top level", 2)
     end
     discover.register_param(file, name, options)
     local v = state.get(file, name)

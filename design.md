@@ -452,6 +452,19 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     nothing runs until `:run()`. lua-ls: live is the primary signature,
     captured an `@overload`; a wrong literal is a diagnostic at edit time.
 
+22. **`ask(prompt, opts?)` and `parameter` (2026-09-25):** closes the
+    renaming pass, against YT's style guide: a function is a verb for what
+    it does, in full words. `pick` stays (`select` mirrors `vim.ui.select`
+    but shadows Lua's `select`). `input` read as a noun names the result;
+    read as a verb its object is the data fed in, so `input("branch: ")`
+    says "input the string 'branch: '". `ask` takes the question as its
+    object and the assignment carries the answer. Runners-up: `read_line`
+    (GNU `readline(prompt)`, but "read" in a task file suggests a file) and
+    `prompt` (its object is the person; stutters as `prompt { prompt = }`).
+    The question becomes the first argument, the shape of `pick(items,
+    opts?)`. `param` becomes `parameter`: typed once per file at top level,
+    so the abbreviation saves nothing. `debug` and `map` already fit.
+
 Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

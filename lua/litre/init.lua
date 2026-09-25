@@ -1,5 +1,5 @@
 -- Public surface: the .litre.lua API (`local l = require("litre")` at the top
--- of every file gives l.command, l.with, l.pick, l.input, l.param, l.debug,
+-- of every file gives l.command, l.with, l.pick, l.ask, l.parameter, l.debug,
 -- l.map -- a module, not injected globals, so lua-ls types the calls)
 -- plus the commands and the layer. Command index:
 --   :Litre [task]       run a task by id (or bare name), no arg opens the picker
@@ -15,7 +15,7 @@ local M = {}
 
 local lib = require("litre.lib")
 M.command, M.with = lib.command, lib.with
-M.pick, M.input, M.param, M.debug, M.map = lib.pick, lib.input, lib.param, lib.debug, lib.map
+M.pick, M.ask, M.parameter, M.debug, M.map = lib.pick, lib.ask, lib.parameter, lib.debug, lib.map
 
 local verbs -- filled below; load_tasks() strips map() keys that collide with them
 

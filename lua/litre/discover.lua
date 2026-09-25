@@ -84,7 +84,7 @@ function M.load()
             vim.notify("litre: " .. tostring(lerr), vim.log.levels.ERROR)
         else
             setfenv(chunk, env)
-            -- param() and map() register as the chunk executes, so a file that
+            -- parameter() and map() register as the chunk executes, so a file that
             -- raises halfway has already put entries in the collector. Its tasks
             -- are dropped below by never reaching the collection step; these have
             -- to be rolled back explicitly, or a file that fails to load still
