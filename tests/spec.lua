@@ -1,4 +1,4 @@
--- Offline end-to-end suite: builds a temp project tree with nested .litre.lua
+-- Offline end-to-end suite: builds a temp project tree with nested .liter.lua
 -- files and drives discovery, the runner, both shell colors, params (state +
 -- source write-back) and the dap merge -- on a bare `nvim --clean -l`.
 -- run.sh points XDG_DATA_HOME at a temp dir so param state stays isolated.
@@ -28,13 +28,13 @@ vim.fn.mkdir(vim.fs.joinpath(tmp, "sub"), "p")
 tmp = assert(vim.uv.fs_realpath(tmp))
 local inner = vim.fs.joinpath(tmp, "sub")
 
-local outer_file = vim.fs.joinpath(tmp, ".litre.lua")
-local inner_file = vim.fs.joinpath(inner, ".litre.lua")
+local outer_file = vim.fs.joinpath(tmp, ".liter.lua")
+local inner_file = vim.fs.joinpath(inner, ".liter.lua")
 
 vim.fn.writefile(vim.split([[
 greeting = "hello"
 function outer_task()
-    vim.g.litre_outer = 1
+    vim.g.liter_outer = 1
 end
 local function hidden()
 end
@@ -42,14 +42,14 @@ hidden()
 ]], "\n"), outer_file)
 
 vim.fn.writefile(vim.split([[
-local l = require("litre")
+local l = require("liter")
 local level = l.parameter("level", { "-O2", "-O3" })
 function build()
-    vim.g.litre_result = greeting .. level
+    vim.g.liter_result = greeting .. level
 end
 l.map("b", build)
 function compose()
-    vim.g.litre_compose = "haha" .. l.command({ "echo", "hehe" }):run("captured")
+    vim.g.liter_compose = "haha" .. l.command({ "echo", "hehe" }):run("captured")
 end
 function stream()
     l.command({ "printf", "x\ny\n" }):run()
@@ -58,18 +58,18 @@ function boom()
     l.command({ "false" }):run()
 end
 function soft()
-    vim.g.litre_soft = l.command({ "false" }, { check = false }):run()
+    vim.g.liter_soft = l.command({ "false" }, { check = false }):run()
 end
 function sleepy()
     l.command({ "sleep", "100" }):run()
-    vim.g.litre_sleepy_done = 1
+    vim.g.liter_sleepy_done = 1
 end
 function feed()
-    vim.g.litre_fed = l.command({ "cat" }, { stdin = "picked-b" }):run("captured")
+    vim.g.liter_fed = l.command({ "cat" }, { stdin = "picked-b" }):run("captured")
 end
 function where()
-    vim.g.litre_where = l.command({ "pwd" }):run("captured")
-    vim.g.litre_where_up = l.command({ "pwd" }, { dir = ".." }):run("captured")
+    vim.g.liter_where = l.command({ "pwd" }):run("captured")
+    vim.g.liter_where_up = l.command({ "pwd" }, { dir = ".." }):run("captured")
 end
 function dbg()
     l.debug("tpl", { program = "bin/app", args = { "-x" } })
@@ -78,9 +78,9 @@ end
 
 vim.cmd.cd(inner)
 
-local discover = require("litre.discover")
-local runner = require("litre.runner")
-local state = require("litre.state")
+local discover = require("liter.discover")
+local runner = require("liter.runner")
+local state = require("liter.state")
 
 -- --- discovery --------------------------------------------------------------
 t.test("finds both files, outermost first", function()
@@ -114,7 +114,7 @@ t.test("params registered", function()
     t.eq(#d.params, 1)
     t.eq(d.params[1].name, "level")
     t.eq(d.params[1].options, { "-O2", "-O3" })
-    t.eq(d.params[1].file, vim.fs.joinpath(vim.fs.normalize(inner), ".litre.lua"))
+    t.eq(d.params[1].file, vim.fs.joinpath(vim.fs.normalize(inner), ".liter.lua"))
 end)
 
 -- --- runner + env nesting + params ------------------------------------------
@@ -122,7 +122,7 @@ t.test("inner file reads outer env; param defaults to first option", function()
     local task = find(d, "build")
     runner.run(task)
     t.ok(wait_done(task), "build did not finish")
-    t.eq(vim.g.litre_result, "hello-O2")
+    t.eq(vim.g.liter_result, "hello-O2")
 end)
 
 t.test("persisted param value wins on the next load", function()
@@ -131,7 +131,7 @@ t.test("persisted param value wins on the next load", function()
     local task = find(d2, "build")
     runner.run(task)
     t.ok(wait_done(task), "build did not finish")
-    t.eq(vim.g.litre_result, "hello-O3")
+    t.eq(vim.g.liter_result, "hello-O3")
 end)
 
 -- --- shell colors -----------------------------------------------------------
@@ -139,45 +139,45 @@ t.test("run(\"captured\") returns trimmed stdout and composes", function()
     local task = find(d, "compose")
     runner.run(task)
     t.ok(wait_done(task), "compose did not finish")
-    t.eq(vim.g.litre_compose, "hahahehe")
+    t.eq(vim.g.liter_compose, "hahahehe")
 end)
 
-t.test("command() dir option resolves relative to the .litre.lua", function()
+t.test("command() dir option resolves relative to the .liter.lua", function()
     local task = find(d, "where")
     runner.run(task)
     t.ok(wait_done(task), "where did not finish")
-    t.eq(vim.g.litre_where, vim.fs.normalize(inner))
-    t.eq(vim.g.litre_where_up, vim.fs.normalize(tmp))
+    t.eq(vim.g.liter_where, vim.fs.normalize(inner))
+    t.eq(vim.g.liter_where_up, vim.fs.normalize(tmp))
 end)
 
 t.test("opts.stdin feeds the command's standard input", function()
     local task = find(d, "feed")
     runner.run(task)
     t.ok(wait_done(task), "feed did not finish")
-    t.eq(vim.g.litre_fed, "picked-b")
+    t.eq(vim.g.liter_fed, "picked-b")
 end)
 
-t.test("run() streams into a litre:// terminal buffer with exit marker", function()
+t.test("run() streams into a liter:// terminal buffer with exit marker", function()
     local task = find(d, "stream")
     runner.run(task)
     t.ok(wait_done(task), "stream did not finish")
-    local buf = require("litre.term").buf("stream")
+    local buf = require("liter.term").buf("stream")
     t.ok(buf, "no output buffer")
     t.ok(vim.wait(3000, function()
         local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
         return text:find("x", 1, true) and text:find("[exit 0]", 1, true)
     end, 10), "buffer never showed output + exit marker")
-    t.eq(vim.api.nvim_buf_get_name(buf), "litre://stream")
+    t.eq(vim.api.nvim_buf_get_name(buf), "liter://stream")
 end)
 
 t.test("re-run replaces the buffer under the same name", function()
-    local before = require("litre.term").buf("stream")
+    local before = require("liter.term").buf("stream")
     local task = find(discover.load(), "stream")
     runner.run(task)
     t.ok(wait_done(task), "second stream did not finish")
-    local after = require("litre.term").buf("stream")
+    local after = require("liter.term").buf("stream")
     t.ok(after and after ~= before, "buffer was not replaced")
-    t.eq(vim.api.nvim_buf_get_name(after), "litre://stream")
+    t.eq(vim.api.nvim_buf_get_name(after), "liter://stream")
     t.eq(vim.api.nvim_buf_is_valid(before), false)
 end)
 
@@ -199,7 +199,7 @@ t.test("check = false returns the code instead", function()
     local task = find(d, "soft")
     runner.run(task)
     t.ok(wait_done(task), "soft did not finish")
-    t.eq(vim.g.litre_soft, 1)
+    t.eq(vim.g.liter_soft, 1)
     t.eq(#t.notified, 0, "unexpected notification")
 end)
 
@@ -215,7 +215,7 @@ t.test("kill interrupts a running run(); the task aborts as interrupted", functi
     t.notified = {}
     runner.kill(task)
     t.ok(wait_done(task), "kill did not end the task")
-    t.eq(vim.g.litre_sleepy_done, nil, "task ran past the killed command")
+    t.eq(vim.g.liter_sleepy_done, nil, "task ran past the killed command")
     t.ok(vim.wait(1000, function()
         return #t.notified > 0
     end, 10), "no notification")
@@ -238,7 +238,7 @@ end)
 
 t.test("run() outside a task errors clearly", function()
     local ok, err = pcall(function()
-        return require("litre.lib").command({ "true" }):run()
+        return require("liter.lib").command({ "true" }):run()
     end)
     t.eq(ok, false)
     t.ok(tostring(err):find("inside a running task", 1, true), tostring(err))
@@ -246,18 +246,18 @@ end)
 
 -- --- dap template merge -----------------------------------------------------
 t.test("debug() merges template + overrides, resolves program and cwd", function()
-    require("litre.config").setup({
+    require("liter.config").setup({
         dap_templates = { tpl = { type = "gdb", request = "launch" } },
     })
     package.loaded["dap"] = {
         run = function(cfg)
-            vim.g.litre_dap = cfg
+            vim.g.liter_dap = cfg
         end,
     }
     local task = find(d, "dbg")
     runner.run(task)
     t.ok(wait_done(task), "dbg did not finish")
-    local cfg = vim.g.litre_dap
+    local cfg = vim.g.liter_dap
     t.eq(cfg.type, "gdb")
     t.eq(cfg.request, "launch")
     t.eq(cfg.name, "tpl")
@@ -267,7 +267,7 @@ t.test("debug() merges template + overrides, resolves program and cwd", function
 end)
 
 -- --- param write-back -------------------------------------------------------
-local params = require("litre.params")
+local params = require("liter.params")
 
 t.test("write-back appends to a single-line literal list on disk", function()
     t.ok(params.add_option(inner_file, "level", "-O0"))
@@ -278,10 +278,10 @@ t.test("write-back appends to a single-line literal list on disk", function()
 end)
 
 t.test("write-back appends to a multiline list", function()
-    local multi = vim.fs.joinpath(tmp, "multi", ".litre.lua")
+    local multi = vim.fs.joinpath(tmp, "multi", ".liter.lua")
     vim.fn.mkdir(vim.fs.dirname(multi), "p")
     vim.fn.writefile(vim.split([[
-local l = require("litre")
+local l = require("liter")
 local mode = l.parameter("mode", {
     "debug",
     "release",
@@ -304,10 +304,10 @@ t.test("write-back through a loaded buffer keeps its unsaved edits", function()
 end)
 
 t.test("write-back on a computed list fails with a message, not an edit", function()
-    local comp = vim.fs.joinpath(tmp, "comp", ".litre.lua")
+    local comp = vim.fs.joinpath(tmp, "comp", ".liter.lua")
     vim.fn.mkdir(vim.fs.dirname(comp), "p")
     vim.fn.writefile(vim.split([[
-local l = require("litre")
+local l = require("liter")
 local opts = vim.split("a,b", ",")
 local mode = l.parameter("mode", opts)
 ]], "\n"), comp)
@@ -317,4 +317,4 @@ local mode = l.parameter("mode", opts)
         "expected a clear error")
 end)
 
-t.finish("litre spec")
+t.finish("liter spec")

@@ -1,4 +1,4 @@
--- Finds .litre.lua files from cwd upward and executes each in a sandboxed env.
+-- Finds .liter.lua files from cwd upward and executes each in a sandboxed env.
 --
 -- Envs nest: an inner file reads outer definitions through __index, while its
 -- own keys stay separate -- so introspection lists each file's tasks exactly
@@ -8,7 +8,7 @@
 -- habit lua-ls already enforces; Capitalized keeps its lowercase-global hint
 -- quiet). Files re-execute on every load(): params and maps re-register from
 -- scratch and nothing is ever stale. The primitives are not injected: a file
--- does `local l = require("litre")` like any Lua module user.
+-- does `local l = require("liter")` like any Lua module user.
 --
 -- The upward walk stats one exact path per directory level -- allowed even
 -- under the arc-mount rules; it must never grow into anything recursive.
@@ -37,13 +37,13 @@ function M.register_map(key, fn)
     table.insert(collect.raw_maps, { key = key, fn = fn, file = M.loading })
 end
 
--- Directories with a .litre.lua, outermost first, plus the cwd they hang off.
+-- Directories with a .liter.lua, outermost first, plus the cwd they hang off.
 function M.files()
     local cwd = vim.fs.normalize(vim.fn.getcwd())
     local dirs = {}
     local d = cwd
     while d do
-        if vim.uv.fs_stat(vim.fs.joinpath(d, ".litre.lua")) then
+        if vim.uv.fs_stat(vim.fs.joinpath(d, ".liter.lua")) then
             table.insert(dirs, 1, d)
         end
         local parent = vim.fs.dirname(d)
@@ -77,11 +77,11 @@ function M.load()
     collect = { tasks = {}, params = {}, raw_maps = {}, maps = {}, files = {}, cwd = cwd }
     local parent = setmetatable({}, { __index = _G })
     for _, dir in ipairs(dirs) do
-        local file = vim.fs.joinpath(dir, ".litre.lua")
+        local file = vim.fs.joinpath(dir, ".liter.lua")
         local env = setmetatable({}, { __index = parent })
         local chunk, lerr = loadfile(file)
         if not chunk then
-            vim.notify("litre: " .. tostring(lerr), vim.log.levels.ERROR)
+            vim.notify("liter: " .. tostring(lerr), vim.log.levels.ERROR)
         else
             setfenv(chunk, env)
             -- parameter() and map() register as the chunk executes, so a file that
@@ -100,7 +100,7 @@ function M.load()
                 for i = #collect.raw_maps, nmaps + 1, -1 do
                     table.remove(collect.raw_maps, i)
                 end
-                vim.notify("litre: " .. tostring(rerr), vim.log.levels.ERROR)
+                vim.notify("liter: " .. tostring(rerr), vim.log.levels.ERROR)
             else
                 table.insert(collect.files, file)
                 local prefix = rel_prefix(cwd, dir)
@@ -137,12 +137,12 @@ function M.load()
                         end
                         if not one_key then
                             vim.notify(
-                                ("litre: map(%q) is not a single key -- use one character"
+                                ("liter: map(%q) is not a single key -- use one character"
                                     .. " or vim.keycode(); skipped"):format(m.key),
                                 vim.log.levels.WARN)
                         elseif not found then
                             vim.notify(
-                                ("litre: map(%q) target is not a global of %s -- skipped")
+                                ("liter: map(%q) target is not a global of %s -- skipped")
                                 :format(m.key, file),
                                 vim.log.levels.WARN)
                         else

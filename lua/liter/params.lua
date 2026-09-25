@@ -68,7 +68,7 @@ local function find_insert(src, name, value)
             return erow, ecol, (' "%s" '):format(escape(value, '"'))
         end
     end
-    return nil, ("litre: no literal option list found for param %q in this file"):format(name)
+    return nil, ("liter: no literal option list found for param %q in this file"):format(name)
 end
 
 -- bufnr() treats its argument as a name pattern (partial matches, magic

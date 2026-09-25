@@ -8,7 +8,7 @@ M.opts = {
     -- Machine-side bases for the `debug(name, overrides)` primitive: each
     -- entry is a dap configuration table (shallow-merged with overrides) or a
     -- function(overrides) returning one. The adapter itself is the nvim
-    -- config's business; .litre.lua files only name a template.
+    -- config's business; .liter.lua files only name a template.
     dap_templates = {},
 }
 

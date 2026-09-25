@@ -7,12 +7,12 @@
 -- task can use run()/pick() -- the yield propagates through it invisibly.
 -- The one rule bought with that: task functions only run through M.run.
 
----@class litre.Task
+---@class liter.Task
 ---@field id string task id shown in the picker ("build", "../deploy", ...)
 ---@field name string bare name inside its file
----@field fn function the task function from the .litre.lua env
----@field dir string directory of the defining .litre.lua
----@field file string path of the defining .litre.lua
+---@field fn function the task function from the .liter.lua env
+---@field dir string directory of the defining .liter.lua
+---@field file string path of the defining .liter.lua
 ---@field co? thread
 ---@field chan? integer terminal channel of this run's output buffer
 ---@field proc? { kill: fun(self, signal: string|integer) } process this run waits on (vim.system handle or sh's pty-job wrapper)
@@ -20,9 +20,9 @@
 
 local M = {}
 
-M.current = nil ---@type litre.Task|nil
-M.last = nil ---@type litre.Task|nil last started task, for re-run and output
-local running = {} ---@type table<string, litre.Task> id -> task while its coroutine is alive
+M.current = nil ---@type liter.Task|nil
+M.last = nil ---@type liter.Task|nil last started task, for re-run and output
+local running = {} ---@type table<string, liter.Task> id -> task while its coroutine is alive
 
 -- run raises this on nonzero exit so failures abort the task with a clean
 -- message instead of a traceback.
@@ -43,14 +43,14 @@ function M.resume(task, ...)
     if not ok then
         running[task.id] = nil
         local msg = getmetatable(err) == ABORT and err.msg or tostring(err)
-        vim.notify(("litre %s: %s"):format(task.id, msg), vim.log.levels.ERROR)
+        vim.notify(("liter %s: %s"):format(task.id, msg), vim.log.levels.ERROR)
     end
 end
 
----@param task litre.Task
+---@param task liter.Task
 function M.run(task)
     if running[task.id] then
-        vim.notify("litre: " .. task.id .. " is already running -- ctrl-c in its buffer kills it",
+        vim.notify("liter: " .. task.id .. " is already running -- ctrl-c in its buffer kills it",
             vim.log.levels.WARN)
         return
     end
@@ -63,7 +63,7 @@ function M.run(task)
 end
 
 ---Running tasks, stable order (the layer's running markers, ctrl-c's lookup).
----@return litre.Task[]
+---@return liter.Task[]
 function M.running_tasks()
     local list = {}
     for _, task in pairs(running) do
@@ -78,10 +78,10 @@ end
 ---Interrupt a running task: SIGTERM its current process; run sees the flag
 ---and abort with "interrupted" instead of "command failed". A task suspended
 ---in a prompt has no process -- cancelling the prompt is the way out there.
----@param task litre.Task
+---@param task liter.Task
 function M.kill(task)
     if not task.proc then
-        vim.notify("litre: " .. task.id .. " is waiting in a prompt -- cancel that instead",
+        vim.notify("liter: " .. task.id .. " is waiting in a prompt -- cancel that instead",
             vim.log.levels.WARN)
         return
     end
@@ -96,7 +96,7 @@ end
 -- survives qa!). With :restart-driven servers that would leak a build per
 -- restart, so reap running tasks' processes on the way out.
 vim.api.nvim_create_autocmd("VimLeavePre", {
-    group = vim.api.nvim_create_augroup("litre.runner", {}),
+    group = vim.api.nvim_create_augroup("liter.runner", {}),
     callback = function()
         for _, task in pairs(running) do
             if task.proc then

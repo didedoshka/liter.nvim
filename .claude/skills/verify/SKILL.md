@@ -1,9 +1,9 @@
 ---
 name: verify
-description: Verify a litre change actually works — the offline suite always, plus the interactive checks that need a real UI (layer keys, pickers, terminal windows, dap).
+description: Verify a liter change actually works — the offline suite always, plus the interactive checks that need a real UI (layer keys, pickers, terminal windows, dap).
 ---
 
-# Verifying litre
+# Verifying liter
 
 ## Tier 1 — offline, always run this
 
@@ -13,8 +13,8 @@ tests/run.sh spec     # just the spec
 ```
 
 The spec is end-to-end on `nvim --clean`: it builds a temp tree of nested
-`.litre.lua` files and drives discovery (nesting, prefixes, locals,
-maps), the runner (both shell colors, streaming into `litre://` buffers, buffer
+`.liter.lua` files and drives discovery (nesting, prefixes, locals,
+maps), the runner (both shell colors, streaming into `liter://` buffers, buffer
 replacement on re-run, error semantics both ways), params (state persistence
 and treesitter write-back: single-line, multiline, through a dirty buffer,
 computed-list refusal) and the dap merge against a stubbed `dap.run`.
@@ -32,9 +32,9 @@ hand in a real nvim with the config loaded:
   stays put when visible in a split; autoscroll while streaming.
 - **`debug()`**: needs the real gdb adapter from the nvim config
   (`plugins/dap.lua`) and a real binary -- the spec only checks the merge.
-- **`litre.cmake`**: the spec feeds it a hand-written file-API reply; the
+- **`liter.cmake`**: the spec feeds it a hand-written file-API reply; the
   first-call configure and a real reply need a real cmake build directory.
 
-A quick real-UI smoke: `cd` to a dir with a `.litre.lua`, `:Litre`, watch the
+A quick real-UI smoke: `cd` to a dir with a `.liter.lua`, `:Liter`, watch the
 buffer stream. As of 2026-07-19 the whole v2 surface is spec-tested but has
 never been battle-tested in an interactive session.

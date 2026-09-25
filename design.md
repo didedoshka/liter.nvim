@@ -1,13 +1,15 @@
-# litre v2 — design
+# liter v2 — design
 
 Status: implemented (2026-07-20). Written as the 2026-07-19 brainstorm; the
 sections below record the decisions and still-open forks from the redesign
 discussion, and "v2 implementation decisions" records how each landed in code.
 
 Renamed from `brd` (build-run-debug) on 2026-07-20: v2 is a general task
-runner, so the old expansion described something it no longer is. `litre` is
-just the word — it does not stand for anything. Names below that only ever
-existed under the old name (`brd.fish`) are left as they were.
+runner, so the old expansion described something it no longer is. `liter`
+stands for lua imperative task runner. Spelled `litre` until 2026-09-25, when it
+took the American spelling the user writes everywhere else and kept typing
+anyway. Names below that only ever existed under the old name (`brd.fish`) are
+left as they were.
 
 ## Why v2
 
@@ -16,11 +18,11 @@ v1's flaw: half declarative, half imperative. It defined a task *format*
 chains, variables, conditionals — required a change to the engine, like VS
 Code's `${...}` variables all have to be implemented by VS Code. Unmaintainable.
 
-v2 is fully imperative: a `.litre.lua` file is a Lua program, tasks are Lua
+v2 is fully imperative: a `.liter.lua` file is a Lua program, tasks are Lua
 functions, and anything expressible in Lua needs zero plugin changes. The
 plugin shrinks to four things:
 
-1. discovery/loading of `.litre.lua` files,
+1. discovery/loading of `.liter.lua` files,
 2. a small stdlib of primitives for running commands,
 3. param persistence + selection UI,
 4. the surface: picker, `x`-layer keymaps, output buffers.
@@ -35,18 +37,18 @@ Decided in parallel (full research: nvim config `notes/nvim-as-tmux.md`): the
 workflow centers on nvim replacing tmux — headless `nvim --listen` servers per
 project on the dev box, `--remote-ui` clients attached through ssh, `:detach` /
 `:connect` / `:restart` (all present in the installed 0.13.0-dev build).
-Consequences for litre:
+Consequences for liter:
 
 - **fish support is dropped** (decided). No `brd.fish`, no config helper, no
-  headless-runner compromise. nvim is always the host; everything litre does is
+  headless-runner compromise. nvim is always the host; everything liter does is
   server-side and survives ssh churn automatically.
 - **Terminals must be disposable.** `:restart` (the config-update path) kills
   terminal buffers. That is only painless if anything worth keeping ran as a
-  re-runnable litre task. litre tasks being cheap to re-run is therefore a hard
+  re-runnable liter task. liter tasks being cheap to re-run is therefore a hard
   requirement, not a nicety.
 - Genuinely long-lived processes that must survive even a server crash go to
   `systemd-run --user` (crontab is forbidden on this box), not a terminal
-  buffer. litre doesn't own that problem.
+  buffer. liter doesn't own that problem.
 
 ## Alternatives considered (and why not)
 
@@ -64,7 +66,7 @@ Consequences for litre:
   params have no selection/persistence story, string manipulation is shell not
   Lua, and a dap config table cannot be built in a Justfile.
 - **core exrc**: nvim 0.11+ loads `.nvim.lua` from cwd *and ancestors* with a
-  `vim.secure.read` trust prompt — requirement 1 nearly exists in core. litre
+  `vim.secure.read` trust prompt — requirement 1 nearly exists in core. liter
   walks `vim.fs.parents` itself (needs control over env/merging), but the trust
   machinery is there if ever wanted; see Discovery.
 - **Command-running libraries** (plenary.job, nvim-nio): not needed.
@@ -75,9 +77,9 @@ Consequences for litre:
 
 ### Tasks = globals in a sandboxed env (decided)
 
-Each `.litre.lua` is executed with `load(..., env)` where `env` is a fresh table
+Each `.liter.lua` is executed with `load(..., env)` where `env` is a fresh table
 (falling back to `_G` via `__index`; the primitives come from
-`require("litre")`, decision 17). Every top-level
+`require("liter")`, decision 17). Every top-level
 `function foo()` lands in that table; every **callable** value in the env is a
 task. `local` = private helper, invisible to the picker — which matches the
 existing habit of marking non-exported functions `local` (lua-ls already
@@ -86,16 +88,16 @@ tasks too, via `__call` detection. Enumeration is `pairs(env)` own-keys only,
 so inherited outer-file tasks are not double-listed.
 
 The rejected alternatives: `return {}`-table (a vestige of the declarative
-format, metadata turns it back into config) and explicit `litre.task(...)`
+format, metadata turns it back into config) and explicit `liter.task(...)`
 registration (ceremony per task).
 
-### Execution: tasks only run inside litre's coroutine runner (decided)
+### Execution: tasks only run inside liter's coroutine runner (decided)
 
 Every task invocation goes through `run_co`-style `coroutine.resume`. Any
 primitive that waits (`sh`, `pick`, `input`) yields internally and is resumed
 by the event loop. Function color exists but is invisible: a plain Lua helper
 calling `sh()` needs no annotation, the yield propagates. The one rule bought
-with this: task functions are not callable from outside litre (no autocmds
+with this: task functions are not callable from outside liter (no autocmds
 calling them directly). Accepted.
 
 `bar = "echo hehe"` called as `bar()` — a string being callable — is
@@ -107,16 +109,16 @@ paren-less string-literal call sugar keeps it close to the ideal syntax.
 
 ## Discovery & merging (decided)
 
-- All `.litre.lua` files up the tree are loaded; the file is **re-executed on
+- All `.liter.lua` files up the tree are loaded; the file is **re-executed on
   every invocation** (v1 already did this; performance negligible). So params
   and any computed values are always fresh — "when is a param read" resolves
   itself.
-- Task names are **prefixed with the relative path** of their `.litre.lua`, so
+- Task names are **prefixed with the relative path** of their `.liter.lua`, so
   files up the tree coexist in one picker without shadowing rules.
 - **Inner files see outer env**: the outer file's env is the inner env's
   `__index` fallback. Shared helpers and variables defined at the repo root are
   usable in subdirectory files.
-- No trust prompt: `.litre.lua` is a private convention nobody targets; attack
+- No trust prompt: `.liter.lua` is a private convention nobody targets; attack
   surface accepted as negligible (a decided position, not an oversight).
   `vim.secure.read` remains available if that ever changes.
 - Open (small): the reference point — "up the tree from where nvim was
@@ -135,11 +137,11 @@ its own `dir`/`env`, and running it mutates nothing outside itself:
 ```lua
 sh("cmake --build .", { dir = "build" })
 -- shared settings without a mutable cwd:
-local b = litre.env { dir = "build" }    -- immutable bundle
+local b = liter.env { dir = "build" }    -- immutable bundle
 b.sh("cmake --build .")
 ```
 
-Default `dir` = the directory of the `.litre.lua` defining the task.
+Default `dir` = the directory of the `.liter.lua` defining the task.
 
 Two colors of shell call (they cannot be one primitive):
 
@@ -148,14 +150,14 @@ Two colors of shell call (they cannot be one primitive):
 - **capture**: silent `vim.system`, returns stdout — what
   `foo() .. bar()`-style composition wants (`$()` analogue).
 
-### Open forks (the next discussion; these decide what every `.litre.lua` reads like)
+### Open forks (the next discussion; these decide what every `.liter.lua` reads like)
 
 1. **Shell string vs argv.** Go takes argv arrays (no quoting bugs, no pipes /
    `$VAR` / globs); v1 built `fish -c` strings (pipes free, quoting hell).
    Common compromise: string → run through shell, table → direct argv. Note the
    `cmd "echo hehe"` sugar only exists in string form.
 2. **Error semantics: `set -e` or Go-explicit.** Either primitives raise on
-   nonzero (task aborts, litre notifies; `build(); run()` just works) or they
+   nonzero (task aborts, liter notifies; `build(); run()` just works) or they
    return the code and callers check (`if build() ~= 0 then return end` —
    explicit, but every chain grows an `if`). A `sh`/`try_sh` hybrid is function
    color in miniature. Undecided.
@@ -170,20 +172,20 @@ Two colors of shell call (they cannot be one primitive):
 ## Params (decided, details open)
 
 ```lua
-local opt = litre.param("optimization_level", { "-O3", "-O2", "-O0" })
+local opt = liter.param("optimization_level", { "-O3", "-O2", "-O0" })
 ```
 
 - Declaration is an imperative call; returns the current value directly (fresh
   on every load, since files re-execute).
 - **Persistence: `stdpath("data")`**, keyed by (config-file path, param name).
   Not a sidecar file — nothing to gitignore.
-- **New option values write back into `.litre.lua` source** (decided — the file
+- **New option values write back into `.liter.lua` source** (decided — the file
   stays the single source of truth for the option list; state file holds only
-  the current selection). Mechanism: treesitter finds the `litre.param` call's
+  the current selection). Mechanism: treesitter finds the `liter.param` call's
   options table and appends a string literal. Constraint accepted: write-back
   works only on *literal* option lists, impossible in general once computed.
 - The loaded-in-vim conflict has one rule: **buffer wins**. If a buffer for
-  that `.litre.lua` exists, apply the edit via `nvim_buf_set_text` and write it
+  that `.liter.lua` exists, apply the edit via `nvim_buf_set_text` and write it
   (buffer may hold unsaved changes the disk doesn't); otherwise edit the disk
   file directly.
 - Open: default value when nothing persisted (first element?); whether the
@@ -192,32 +194,32 @@ local opt = litre.param("optimization_level", { "-O3", "-O2", "-O0" })
 
 ## dap (direction decided, home undecided)
 
-Fully imperative, a debug task is just a task ending in `dap.run(cfg)` — litre
-need own nothing. But "cpp binary gdb" boilerplate in every `.litre.lua` is
+Fully imperative, a debug task is just a task ending in `dap.run(cfg)` — liter
+need own nothing. But "cpp binary gdb" boilerplate in every `.liter.lua` is
 stupid, and the machine-specific base genuinely cannot live in project files
 (system gdb + sourced arc pretty-printers — the ya-gdb-segfault history).
 Middle ground: **name + overrides**. The base config is registered once
-machine-side; `.litre.lua` supplies only what varies:
+machine-side; `.liter.lua` supplies only what varies:
 
 ```lua
 function debug_main()
     build()
-    litre.debug("cpp", { program = "./build/main", args = { "--fast" } })
+    liter.debug("cpp", { program = "./build/main", args = { "--fast" } })
 end
 ```
 
-`litre.debug` merges overrides onto the named base and calls `dap.run`. Coupling
-shrinks to template *names*. Open: does the registry live in litre
+`liter.debug` merges overrides onto the named base and calls `dap.run`. Coupling
+shrinks to template *names*. Open: does the registry live in liter
 (`setup{ dap_templates = ... }`) or as a plain module in the nvim config that
-`.litre.lua` calls? Rejected extreme: merging onto `dap.configurations.cpp[1]`
-by hand in every task — zero litre surface but the boilerplate metastasizes.
+`.liter.lua` calls? Rejected extreme: merging onto `dap.configurations.cpp[1]`
+by hand in every task — zero liter surface but the boilerplate metastasizes.
 
 ## Output: dead terminal buffers, no owned window (decided)
 
 - v1's floating terminal is contrary to the philosophy and is gone. No owned
   window at all: task output is a **buffer like any other** (the oil.nvim
   principle) — open it in whatever window, split, or tab.
-- Named `litre://task/<name>` and **reused per task** (the arc-nvim scratch
+- Named `liter://task/<name>` and **reused per task** (the arc-nvim scratch
   convention), so re-running refreshes in place instead of piling duplicates.
 - **Dead terminal** (job output, not a live shell): a pty'd job streaming into
   the buffer keeps colors and progress bars rendering, while exit codes come
@@ -230,8 +232,8 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
   2. *program-asks-on-stdin*: the primitive keeps a stdin handle; a task can
      prompt in Lua and write the answer to the process.
   What a dead terminal cannot do is **unanticipated** interactivity (surprise
-  password prompt). The escape hatch is not a litre feature: `:terminal` already
-  is the live terminal, native, zero litre code. Boundary position (leaning
+  password prompt). The escape hatch is not a liter feature: `:terminal` already
+  is the live terminal, native, zero liter code. Boundary position (leaning
   accepted): a task that needs surprise interaction should have prompted in
   Lua; truly interactive work is `:terminal` by hand.
 
@@ -242,14 +244,14 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
   joining `<bs>` (debugmaster) and `s` (arrow) as layers. v1's fixed
   `<bs>s`/`<bs>x`/`<bs>p` (select / compile+run / compile+debug) workflow was
   not extensible — constant target-switching; per-task shortcuts replace it.
-- Keys are assigned in `.litre.lua` itself (`map("c", build)`, per-project, next
+- Keys are assigned in `.liter.lua` itself (`map("c", build)`, per-project, next
   to the definition); verbs are `V/C/O/R` (lowercase with v2, uppercase since
   2026-09-24, see decision 16; `k` was a verb until 2026-08-12, see decision 15).
 - Discoverability (decided 2026-08-06): the blind `getcharstr` layer is gone.
   `x` opens fzf-pin's picker (shared machinery, `~/personal/fzf-pin.nvim`) with
   every task listed and the map()ped chars live as binds — same keystrokes as
   before, but the state is visible. `i` is reserved on top of the verbs: it is
-  fzf-pin's enter-search key. litre gained fzf-lua/fzf-pin as runtime deps of
+  fzf-pin's enter-search key. liter gained fzf-lua/fzf-pin as runtime deps of
   `layer()`; everything else still runs without them.
 
 ## v1 inventory — what carries over
@@ -262,13 +264,13 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
 | float terminal (`terminal/float.lua`) | dropped (philosophy) |
 | `_target` selection (`choose_target`) | gone — tasks are called directly |
 | declarative `{ dir, build, run, debug }` format | gone — that's the point |
-| `LitreCmake` target generator | undecided — regenerate as task-emitting Lua? |
-| `LitreConfig` (open nearest config) | keep as an `x`-layer verb, trivially |
+| `LiterCmake` target generator | undecided — regenerate as task-emitting Lua? |
+| `LiterConfig` (open nearest config) | keep as an `x`-layer verb, trivially |
 | `fish/` (brd.fish, config helper) | dropped (no fish support) |
 
 ## Requirements → status
 
-1. all `.litre.lua` up the tree — decided (walk + re-execute + nested envs)
+1. all `.liter.lua` up the tree — decided (walk + re-execute + nested envs)
 2. utilities to run commands — decided in shape (os/exec model), forks open
 3. call-as-function syntax — resolved via `cmd` wrapper + runner (string-call
    is impossible in Lua; color solved by the coroutine runner)
@@ -281,13 +283,13 @@ by hand in every task — zero litre surface but the boilerplate metastasizes.
 ## Open questions, ranked
 
 1. Primitives: shell string vs argv; error semantics; `()` = capture with
-   runner-streams-tasks rule. *(Every `.litre.lua` ever written is made of
+   runner-streams-tasks rule. *(Every `.liter.lua` ever written is made of
    these.)*
-2. dap template registry: litre `setup` opt vs plain nvim-config module.
-3. Key assignment: in `.litre.lua` vs nvim config; fixed layer verbs.
+2. dap template registry: liter `setup` opt vs plain nvim-config module.
+3. Key assignment: in `.liter.lua` vs nvim config; fixed layer verbs.
 4. Param UX details: default value, one flow or two.
 5. Discovery reference point: launch dir vs cwd.
-6. `LitreCmake` successor.
+6. `LiterCmake` successor.
 7. Concurrency primitives (parked deliberately).
 
 ## v2 implementation decisions (2026-07-19 -- provisional, veto freely)
@@ -311,7 +313,7 @@ tests cover all of it (`tests/run.sh`, 24 cases).
    (`runner.run` special-cases cmd values via `lib.as_cmd`).
 4. **Concurrency** (fork 4): stayed parked. Different tasks may run in
    parallel (each owns its buffer); the same task is refused while running.
-5. **Key assignment in `.litre.lua`** (open q. 3): `map(key, fn)` next to the
+5. **Key assignment in `.liter.lua`** (open q. 3): `map(key, fn)` next to the
    definition; discovery reverse-looks-up the function's global name, warns
    and skips if the target is local. Layer verbs fixed as x/v/c/o/r
    (picker/params/config/output/re-run); map() onto a reserved key warns and
@@ -325,12 +327,12 @@ tests cover all of it (`tests/run.sh`, 24 cases).
    style; buffer-wins rule implemented as specified.
 8. **Discovery keys off cwd** (open q. 5), `vim.fn.getcwd()` at use time --
    with per-project servers the launch dir is meaningless.
-9. **`LitreCmake` reimplemented** (open q. 6) as a generator of imperative
+9. **`LiterCmake` reimplemented** (open q. 6) as a generator of imperative
    source: build/run/debug function triple per cmake target, inserted at the
    cursor, meant to be edited down.
 10. Not previously discussed, decided in code: primitives are **injected
-    globals** in the sandbox env (no `require` in .litre.lua); `debug` therefore
-    shadows Lua's debug library inside .litre.lua files -- accepted, task files
+    globals** in the sandbox env (no `require` in .liter.lua); `debug` therefore
+    shadows Lua's debug library inside .liter.lua files -- accepted, task files
     have no business introspecting stacks. Top-level `sh`/`out` is an error:
     top level re-executes on every load, so shell work there would fire on
     every picker open.
@@ -358,17 +360,17 @@ tests cover all of it (`tests/run.sh`, 24 cases).
 14. **Review fixes (2026-07-22):** `param()` is now genuinely top-level-only —
     the undocumented in-task fallback read a value but could never register in
     the picker (registration only happens while discovery executes the file),
-    a trap rather than a feature. `LitreConfig`/`xc` targets the innermost
+    a trap rather than a feature. `LiterConfig`/`xc` targets the innermost
     *discovered* file, not the innermost successfully *loaded* one, so a
     syntax-broken config can be opened for fixing. `map()` keys that
     `getcharstr` can never deliver (multi-char strings, `"<F5>"` notation)
-    warn and are skipped; `vim.keycode` termcodes pass. `params.json` is
+    warn and are skipped; `vim.keycode` termcodes pass. `parameters.json` is
     written to a tmp file and renamed: a concurrent reader in another
     per-project server used to be able to see a half-written file, decode `{}`
     and wipe every selection on its next write. A `:bd!`'d output buffer is
     reopened by the task's next `sh()` instead of streaming into the void.
     Write-back finds the target buffer by resolved path (`bufnr()` does
-    pattern matching, and symlinked paths never matched). `:LitreCmake`
+    pattern matching, and symlinked paths never matched). `:LiterCmake`
     filters the `all` pseudo-target — its old filter pattern kept the
     parenthetical from the help line and could never match the captured name.
 
@@ -388,11 +390,11 @@ tests cover all of it (`tests/run.sh`, 24 cases).
 
 17. **Primitives via require, tasks Capitalized (2026-09-24):** reverses 10.
     lua-ls saw eight undefined globals per file and typed nothing. Every
-    file now opens with `local l = require("litre")` (init re-exports
+    file now opens with `local l = require("liter")` (init re-exports
     `lib`'s nine functions, annotated there) so hover, signature help and
     completion work, and a file stays warning-free even when lua-ls cannot
     see the checkout. A `---@meta` stub was rejected: it duplicates the
-    signatures and depends on litre.nvim being in lua-ls's library, which the
+    signatures and depends on liter.nvim being in lua-ls's library, which the
     config's runtime-path snapshot delivered in 2 of 5 launches (replaced by
     lazydev on the config side). `debug` no longer shadows Lua's debug
     library. Tasks are Capitalized: `lowercase-global` is lua-ls's "forgot
@@ -400,7 +402,7 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     globals, so no directive line and no diagnostic filter -- a convention,
     not a rule; lowercase tasks still run (the spec pins it).
 
-18. **Function-valued params, `:LitreCmake` gone (2026-09-24):** closes open
+18. **Function-valued params, `:LiterCmake` gone (2026-09-24):** closes open
     q. 6. The generator (9) pasted one build/run/debug triple per target,
     parsed `--target help`, which is Makefile-only and omitted executables
     under Ninja (measured), and knew nothing you don't when opening the file.
@@ -417,16 +419,16 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     subdirectory target is `sub/tool`), and a plain `cmake --build`
     refreshes the reply once the query file exists (measured), so cmake
     itself runs only on the first call. The config's
-    `litre_cmake` snippet is the whole per-project boilerplate.
+    `liter_cmake` snippet is the whole per-project boilerplate.
 
 19. **`env` is `with`, and stacks (2026-09-24):** the bundle was named after
     Go's os/exec, which has no such thing -- each `exec.Cmd` carries its own
-    `Dir`/`Env` and nothing reuses them -- so the name was litre's own, and
+    `Dir`/`Env` and nothing reuses them -- so the name was liter's own, and
     it collided with the `env` key it takes (`l.env { env = ... }`).
     `with` reads at the call site. `b.with { ... }` returns a new bundle on
     top of `b`: the closer setting wins key by key (a stacked or per-call
     `dir` replaces, it never appends, since every dir resolves against the
-    task's own .litre.lua), except `env`, whose variables accumulate -- a
+    task's own .liter.lua), except `env`, whose variables accumulate -- a
     stacked bundle that replaced the whole variable set would defeat the
     only reason to stack one. `defaults`, `at` and `opts` were the runners-up.
 
@@ -465,7 +467,7 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     opts?)`. `param` becomes `parameter`: typed once per file at top level,
     so the abbreviation saves nothing. `debug` and `map` already fit.
 
-Integration (nvim config): `lua/plugins/litre.lua` wires setup with a `cpp`
+Integration (nvim config): `lua/plugins/liter.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half
 landed as `plugin/server.lua` (SSH_AUTH_SOCK pin, `:Restart` with session,

@@ -13,13 +13,13 @@ local t = dofile((debug.getinfo(1, "S").source:sub(2)):gsub("spec_advanced%.lua$
 vim.opt.rtp:prepend(t.root())
 t.quiet()
 
-local discover = require("litre.discover")
-local runner = require("litre.runner")
-local state = require("litre.state")
-local params = require("litre.params")
-local term = require("litre.term")
-local config = require("litre.config")
-local litre = require("litre")
+local discover = require("liter.discover")
+local runner = require("liter.runner")
+local state = require("liter.state")
+local params = require("liter.params")
+local term = require("liter.term")
+local config = require("liter.config")
+local liter = require("liter")
 
 local function wait_done(task)
     return vim.wait(5000, function()
@@ -104,8 +104,8 @@ local bare = vim.fn.tempname()
 vim.fn.mkdir(bare, "p")
 bare = vim.fs.normalize(assert(vim.uv.fs_realpath(bare)))
 
-write(vim.fs.joinpath(tmp, ".litre.lua"), [[
-local l = require("litre")
+write(vim.fs.joinpath(tmp, ".liter.lua"), [[
+local l = require("liter")
 shared_greeting = "hi"
 function outer_task()
     vim.g.x_outer = l.command({ "pwd" }):run("captured")
@@ -116,8 +116,8 @@ function slow_outer()
 end
 ]])
 
-write(vim.fs.joinpath(work, ".litre.lua"), [[
-local l = require("litre")
+write(vim.fs.joinpath(work, ".liter.lua"), [[
+local l = require("liter")
 local level = l.parameter("level", { "-O2", "-O3" })
 function slow_inner()
     l.command({ "sleep", "0.05" }):run("captured")
@@ -154,10 +154,10 @@ function asky()
     vim.g.x_answer = tostring(l.ask("name: ", { default = "anon" }))
 end
 function nobinary()
-    l.command({ "litre-no-such-binary-zzz" }):run()
+    l.command({ "liter-no-such-binary-zzz" }):run()
 end
 function badout()
-    l.command({ "litre-no-such-binary-zzz" }):run("captured")
+    l.command({ "liter-no-such-binary-zzz" }):run("captured")
 end
 function stderr_in_error()
     l.command({ "sh", "-c", "echo detail 1>&2; exit 3" }):run("captured")
@@ -191,16 +191,16 @@ end
 l.map("b", withbundle)
 ]])
 
-write(vim.fs.joinpath(tmp, "broken", ".litre.lua"), [[
+write(vim.fs.joinpath(tmp, "broken", ".liter.lua"), [[
 function oops(
 ]])
 
-write(vim.fs.joinpath(tmp, "rterr", ".litre.lua"), [[
+write(vim.fs.joinpath(tmp, "rterr", ".liter.lua"), [[
 error("top level boom")
 ]])
 
-write(vim.fs.joinpath(tmp, "weird", ".litre.lua"), [[
-local l = require("litre")
+write(vim.fs.joinpath(tmp, "weird", ".liter.lua"), [[
+local l = require("liter")
 function real_task()
 end
 l.map("x", real_task)
@@ -209,8 +209,8 @@ l.map("R", real_task)
 l.map("i", real_task)
 ]])
 
-write(vim.fs.joinpath(tmp, "badmap", ".litre.lua"), [[
-local l = require("litre")
+write(vim.fs.joinpath(tmp, "badmap", ".liter.lua"), [[
+local l = require("liter")
 function mc_task()
 end
 l.map("gd", mc_task)
@@ -257,7 +257,7 @@ t.test("with() defaults apply to sh/out, per-call opts win", function()
     t.eq(vim.g.x_with_dir, deep)
     t.eq(vim.g.x_with_check, 1, "check = false did not carry through the bundle")
     -- a per-call dir replaces the bundle's outright; it does not stack on top
-    -- of it, because every dir resolves against the .litre.lua's own directory
+    -- of it, because every dir resolves against the .liter.lua's own directory
     t.eq(vim.g.x_with_override, tmp, "per-call dir did not win over the default")
 end)
 
@@ -357,14 +357,14 @@ vim.ui.select, vim.ui.input = ui_select, ui_input
 t.test("run() on a missing binary aborts with a spawn message", function()
     t.notified = {}
     run("nobinary")
-    t.ok(notified("cannot run litre-no-such-binary-zzz"),
+    t.ok(notified("cannot run liter-no-such-binary-zzz"),
         "unexpected: " .. vim.inspect(t.notified))
 end)
 
 t.test("run(\"captured\") on a missing binary aborts the same way", function()
     t.notified = {}
     run("badout")
-    t.ok(notified("cannot run litre-no-such-binary-zzz"),
+    t.ok(notified("cannot run liter-no-such-binary-zzz"),
         "unexpected: " .. vim.inspect(t.notified))
 end)
 
@@ -425,17 +425,17 @@ t.test("a deleted output buffer is reopened by the task's next run()", function(
 end)
 
 -- --- discovery error paths --------------------------------------------------
-t.test("a .litre.lua that does not compile is reported, outer files still load", function()
+t.test("a .liter.lua that does not compile is reported, outer files still load", function()
     at(vim.fs.joinpath(tmp, "broken"), function()
         t.notified = {}
         local d = discover.load()
-        t.ok(notified("litre:"), "syntax error not reported")
+        t.ok(notified("liter:"), "syntax error not reported")
         t.ok(find(d, "../outer_task"), "the healthy outer file was dropped too")
         t.eq(#d.files, 1, "the broken file was counted as loaded")
     end)
 end)
 
-t.test("a .litre.lua that raises at load time is reported the same way", function()
+t.test("a .liter.lua that raises at load time is reported the same way", function()
     at(vim.fs.joinpath(tmp, "rterr"), function()
         t.notified = {}
         local d = discover.load()
@@ -478,8 +478,8 @@ end)
 
 -- A file registers params and maps as it executes, so anything it registered
 -- before raising is already in the collector when the error unwinds it.
-write(vim.fs.joinpath(tmp, "ghost", ".litre.lua"), [[
-local l = require("litre")
+write(vim.fs.joinpath(tmp, "ghost", ".liter.lua"), [[
+local l = require("liter")
 local mode = l.parameter("ghost_param", { "x", "y" })
 l.map("g", function() end)
 function ghost_task()
@@ -510,15 +510,15 @@ end)
 
 -- The contract is "every function own-global is a task". These pin its edges:
 -- what does not count, and what a file can do to the primitives it inherits.
-write(vim.fs.joinpath(tmp, "empty", ".litre.lua"), "")
+write(vim.fs.joinpath(tmp, "empty", ".liter.lua"), "")
 
-write(vim.fs.joinpath(tmp, "callable", ".litre.lua"), [[
+write(vim.fs.joinpath(tmp, "callable", ".liter.lua"), [[
 callable_task = setmetatable({}, { __call = function() vim.g.x_callable = 7 end })
 plain_table = { 1, 2, 3 }
 scalar = 5
 ]])
 
-write(vim.fs.joinpath(tmp, "shadow", ".litre.lua"), [[
+write(vim.fs.joinpath(tmp, "shadow", ".liter.lua"), [[
 function command()
     vim.g.x_shadowed_command = "mine"
 end
@@ -527,7 +527,7 @@ function uses_command()
 end
 ]])
 
-t.test("an empty .litre.lua contributes nothing and says nothing", function()
+t.test("an empty .liter.lua contributes nothing and says nothing", function()
     at(vim.fs.joinpath(tmp, "empty"), function()
         t.notified = {}
         local d = discover.load()
@@ -566,7 +566,7 @@ end)
 t.test("a map() on a layer verb or on i is stripped when the layer loads", function()
     at(vim.fs.joinpath(tmp, "weird"), function()
         t.notified = {}
-        litre.source.list()
+        liter.source.list()
         t.ok(notified('key "R" is reserved by the layer'),
             "unexpected: " .. vim.inspect(t.notified))
         t.ok(notified('key "i" is reserved by the layer'),
@@ -575,14 +575,14 @@ t.test("a map() on a layer verb or on i is stripped when the layer loads", funct
 end)
 
 -- --- the x layer ------------------------------------------------------------
--- The layer is litre.source driven through fzf-pin's picker; build() returns
+-- The layer is liter.source driven through fzf-pin's picker; build() returns
 -- the per-char closures the real fzf binds would fire, so the semantics are
 -- testable without a UI. The sibling checkout is the dependency, like lazy.nvim
 -- loads it in the real config.
 vim.opt.rtp:prepend(vim.fn.expand("~/personal/fzf-pin.nvim"))
 local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
-    local built = fzfpin.build(litre.source)
+    local built = fzfpin.build(liter.source)
     built.entries() -- populates the char lookup, as fzf listing entries would
     -- uppercase verbs are bound raw and dispatched by their underscore name
     local action = built.actions[key] or built.actions["_verb_" .. key:lower()]
@@ -604,7 +604,7 @@ t.test("layer: a free key says so and does nothing else", function()
 end)
 
 t.test("layer: entries render map() chars and the running marker", function()
-    local built = fzfpin.build(litre.source)
+    local built = fzfpin.build(liter.source)
     local bundled
     for _, e in ipairs(built.entries()) do
         if e:find("withbundle", 1, true) then
@@ -618,7 +618,7 @@ end)
 t.test("layer: O shows the last task's output buffer", function()
     run("streamer") -- make streamer the last task, with a buffer
     layer_with("O")
-    t.eq(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()), "litre://streamer")
+    t.eq(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()), "liter://streamer")
     vim.cmd.enew()
 end)
 
@@ -683,72 +683,72 @@ end)
 
 -- --- user commands ----------------------------------------------------------
 t.test("setup() registers the two commands", function()
-    litre.setup({ shell = "sh" })
+    liter.setup({ shell = "sh" })
     local cmds = vim.api.nvim_get_commands({})
-    for _, name in ipairs({ "Litre", "LitreConfig" }) do
+    for _, name in ipairs({ "Liter", "LiterConfig" }) do
         t.ok(cmds[name], name .. " not registered")
     end
 end)
 
-t.test(":Litre <name> runs the nearest task of that bare name", function()
+t.test(":Liter <name> runs the nearest task of that bare name", function()
     vim.g.x_inherit = nil
-    vim.cmd("Litre inherits")
+    vim.cmd("Liter inherits")
     t.ok(vim.wait(3000, function()
         return vim.g.x_inherit ~= nil
-    end, 10), ":Litre inherits did not run")
+    end, 10), ":Liter inherits did not run")
 end)
 
-t.test(":Litre with a prefixed id also resolves", function()
+t.test(":Liter with a prefixed id also resolves", function()
     vim.g.x_outer = nil
-    vim.cmd("Litre ../outer_task")
+    vim.cmd("Liter ../outer_task")
     t.ok(vim.wait(3000, function()
         return vim.g.x_outer ~= nil
-    end, 10), ":Litre ../outer_task did not run")
+    end, 10), ":Liter ../outer_task did not run")
     t.eq(vim.g.x_outer, tmp)
 end)
 
-t.test(":Litre on an unknown task warns", function()
+t.test(":Liter on an unknown task warns", function()
     t.notified = {}
-    vim.cmd("Litre nosuchtask")
+    vim.cmd("Liter nosuchtask")
     t.ok(notified("no task nosuchtask"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.test(":Litre completion lists task ids", function()
-    local ids = vim.fn.getcompletion("Litre ", "cmdline")
+t.test(":Liter completion lists task ids", function()
+    local ids = vim.fn.getcompletion("Liter ", "cmdline")
     t.ok(vim.tbl_contains(ids, "inherits"), "inherits missing from " .. vim.inspect(ids))
     t.ok(vim.tbl_contains(ids, "../outer_task"), "prefixed id missing")
 end)
 
-t.test(":LitreConfig opens the innermost .litre.lua", function()
-    vim.cmd("LitreConfig")
-    t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)), vim.fs.joinpath(work, ".litre.lua"))
+t.test(":LiterConfig opens the innermost .liter.lua", function()
+    vim.cmd("LiterConfig")
+    t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)), vim.fs.joinpath(work, ".liter.lua"))
     vim.cmd.enew()
 end)
 
-t.test("edit_config offers a path at cwd when no .litre.lua exists", function()
+t.test("edit_config offers a path at cwd when no .liter.lua exists", function()
     at(bare, function()
-        litre.edit_config()
-        t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)), vim.fs.joinpath(bare, ".litre.lua"))
-        t.eq(vim.fn.filereadable(vim.fs.joinpath(bare, ".litre.lua")), 0,
+        liter.edit_config()
+        t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)), vim.fs.joinpath(bare, ".liter.lua"))
+        t.eq(vim.fn.filereadable(vim.fs.joinpath(bare, ".liter.lua")), 0,
             "it should not be created")
         vim.cmd.enew()
     end)
 end)
 
-t.test("edit_config reaches a .litre.lua that fails to load", function()
+t.test("edit_config reaches a .liter.lua that fails to load", function()
     at(vim.fs.joinpath(tmp, "broken"), function()
-        litre.edit_config()
+        liter.edit_config()
         t.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)),
-            vim.fs.joinpath(tmp, "broken", ".litre.lua"),
+            vim.fs.joinpath(tmp, "broken", ".liter.lua"),
             "the broken innermost file is exactly the one that needs editing")
         vim.cmd.enew()
     end)
 end)
 
-t.test("the layer source is empty but usable when no .litre.lua exists", function()
+t.test("the layer source is empty but usable when no .liter.lua exists", function()
     at(bare, function()
         -- the picker still opens: verbs like C (edit config) must stay reachable
-        t.eq(litre.source.list(), {})
+        t.eq(liter.source.list(), {})
     end)
 end)
 
@@ -767,18 +767,18 @@ t.test("pick_param shows the live value and persists a new selection", function(
             on_choice(items[2]) -- "-O3"
         end
     end
-    litre.pick_param()
+    liter.pick_param()
     vim.ui.select = ui_select
     t.eq(step, 2, "the second (value) picker never opened")
     t.ok(labels[1] and labels[1]:find("level = -O2", 1, true),
         "unexpected label: " .. vim.inspect(labels))
-    t.eq(state.get(vim.fs.joinpath(work, ".litre.lua"), "level"), "-O3")
+    t.eq(state.get(vim.fs.joinpath(work, ".liter.lua"), "level"), "-O3")
     run("inherits")
     t.eq(vim.g.x_inherit, "hi-O3", "the new value did not reach the task")
 end)
 
 t.test("pick_param's new-value path writes the source and selects it", function()
-    local file = vim.fs.joinpath(work, ".litre.lua")
+    local file = vim.fs.joinpath(work, ".liter.lua")
     local step = 0
     ---@diagnostic disable-next-line: duplicate-set-field
     vim.ui.select = function(items, _opts, on_choice)
@@ -789,7 +789,7 @@ t.test("pick_param's new-value path writes the source and selects it", function(
     vim.ui.input = function(_opts, on_confirm)
         on_confirm("-Og")
     end
-    litre.pick_param()
+    liter.pick_param()
     vim.ui.select, vim.ui.input = ui_select, ui_input
     t.eq(state.get(file, "level"), "-Og")
     t.ok(table.concat(vim.fn.readfile(file), "\n"):find('"-O3", "-Og"', 1, true),
@@ -800,9 +800,9 @@ end)
 
 t.test("a function-valued param runs as a task under V and persists the pick", function()
     local dyn = vim.fs.joinpath(tmp, "dyn")
-    local file = vim.fs.joinpath(dyn, ".litre.lua")
+    local file = vim.fs.joinpath(dyn, ".liter.lua")
     write(file, [[
-local l = require("litre")
+local l = require("liter")
 local which = l.parameter("which", function()
     return vim.split(l.command({ "printf", "one\nthree\ntwo" }):run("captured"), "\n")
 end)
@@ -824,7 +824,7 @@ end
                 on_choice(items[2])
             end
         end
-        litre.pick_param()
+        liter.pick_param()
         -- the list function yields on out(): the value picker opens later
         t.ok(wait_idle(), "the V task did not finish")
         vim.ui.select = ui_select
@@ -855,8 +855,8 @@ t.test("cmake.executables/executable_path read the file-API reply", function()
     json("t-tool.json", { name = "tool", type = "EXECUTABLE", artifacts = { { path = "sub/tool" } } })
     json("t-lib.json", { name = "lib", type = "STATIC_LIBRARY", artifacts = { { path = "liblib.a" } } })
     json("t-main.json", { name = "main", type = "EXECUTABLE", artifacts = { { path = "main" } } })
-    write(vim.fs.joinpath(proj, ".litre.lua"), [[
-local cm = require("litre.cmake")
+    write(vim.fs.joinpath(proj, ".liter.lua"), [[
+local cm = require("liter.cmake")
 function probe()
     vim.g.x_cm = { targets = cm.executables("bld"), tool = cm.executable_path("bld", "tool") }
 end
@@ -899,7 +899,7 @@ t.test("a function template is called with the overrides", function()
     t.eq(cfg.name, "fn", "name defaulted from the template name")
     t.eq(cfg.program, vim.fs.joinpath(deep, "bin/app"), "program resolved against opts.dir")
     t.eq(cfg.cwd, deep)
-    t.eq(cfg.dir, nil, "the litre-only dir option leaked into the dap config")
+    t.eq(cfg.dir, nil, "the liter-only dir option leaked into the dap config")
 end)
 
 t.test("an unknown template aborts with a message naming setup{}", function()
@@ -911,7 +911,7 @@ end)
 
 -- --- primitives outside a task ----------------------------------------------
 t.test("run(captured)/pick/ask all refuse to run outside a task", function()
-    local lib = require("litre.lib")
+    local lib = require("liter.lib")
     local ok, err = pcall(function()
         return lib.command({ "true" }):run("captured")
     end)
@@ -927,14 +927,14 @@ end)
 t.test("run() rejects an unknown mode before spawning anything", function()
     local ok, err = pcall(function()
         ---@diagnostic disable-next-line: param-type-mismatch
-        return require("litre.lib").command({ "true" }):run("loud")
+        return require("liter.lib").command({ "true" }):run("loud")
     end)
     t.eq(ok, false)
     t.ok(tostring(err):find('"live" or "captured"', 1, true), tostring(err))
 end)
 
 t.test("map() outside a load is an error, not a silent no-op", function()
-    local ok, err = pcall(require("litre.lib").map, "j", function() end)
+    local ok, err = pcall(require("liter.lib").map, "j", function() end)
     t.eq(ok, false)
     t.ok(tostring(err):find("top level", 1, true), tostring(err))
 end)
@@ -949,7 +949,7 @@ end)
 
 -- --- persisted state --------------------------------------------------------
 t.test("state survives a round trip and is keyed by file and name", function()
-    local f1, f2 = "/one/.litre.lua", "/two/.litre.lua"
+    local f1, f2 = "/one/.liter.lua", "/two/.liter.lua"
     state.set(f1, "mode", "debug")
     state.set(f2, "mode", "release")
     state.set(f1, "other", "x")
@@ -957,15 +957,15 @@ t.test("state survives a round trip and is keyed by file and name", function()
     t.eq(state.get(f2, "mode"), "release")
     t.eq(state.get(f1, "other"), "x")
     t.eq(state.get(f1, "missing"), nil)
-    t.eq(state.get("/nowhere/.litre.lua", "mode"), nil)
+    t.eq(state.get("/nowhere/.liter.lua", "mode"), nil)
 end)
 
 t.test("a corrupt state file reads as empty instead of raising", function()
-    local p = vim.fs.joinpath(vim.fn.stdpath("data"), "litre", "params.json")
+    local p = vim.fs.joinpath(vim.fn.stdpath("data"), "liter", "parameters.json")
     vim.fn.writefile({ "{not json" }, p)
-    t.eq(state.get("/one/.litre.lua", "mode"), nil)
-    state.set("/one/.litre.lua", "mode", "recovered") -- and it heals on write
-    t.eq(state.get("/one/.litre.lua", "mode"), "recovered")
+    t.eq(state.get("/one/.liter.lua", "mode"), nil)
+    state.set("/one/.liter.lua", "mode", "recovered") -- and it heals on write
+    t.eq(state.get("/one/.liter.lua", "mode"), "recovered")
 end)
 
 -- --- params write-back edges ------------------------------------------------
@@ -1003,9 +1003,9 @@ end)
 
 t.test("write-back finds a param called through a module table", function()
     local f = vim.fs.joinpath(tmp, "pf_dot.lua")
-    write(f, 'local m = litre.parameter("mode", { "a" })')
+    write(f, 'local m = liter.parameter("mode", { "a" })')
     t.ok(params.add_option(f, "mode", "b"))
-    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = litre.parameter("mode", { "a", "b" })')
+    t.eq(table.concat(vim.fn.readfile(f), "\n"), 'local m = liter.parameter("mode", { "a", "b" })')
 end)
 
 -- The tests above pin the exact text for known-good values. This one pins the
@@ -1049,11 +1049,11 @@ end)
 
 t.test("write-back finds a buffer opened through a symlinked path", function()
     local real = vim.fs.joinpath(tmp, "real")
-    local target = vim.fs.joinpath(real, ".litre.lua")
+    local target = vim.fs.joinpath(real, ".liter.lua")
     write(target, 'local m = parameter("mode", { "a" })')
     local link = vim.fs.joinpath(tmp, "link")
     assert(vim.uv.fs_symlink(real, link))
-    vim.cmd.edit(vim.fs.joinpath(link, ".litre.lua"))
+    vim.cmd.edit(vim.fs.joinpath(link, ".liter.lua"))
     local buf = vim.api.nvim_get_current_buf()
     vim.api.nvim_buf_set_lines(buf, 0, 0, true, { "-- via symlink" })
     t.ok(params.add_option(target, "mode", "b"))
@@ -1072,4 +1072,4 @@ t.test("write-back for a param that is not in the file fails cleanly", function(
     t.ok(notified("no literal option list"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.finish("litre advanced spec")
+t.finish("liter advanced spec")

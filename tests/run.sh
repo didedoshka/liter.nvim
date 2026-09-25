@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Offline checks for litre: static analysis + the end-to-end spec. No network,
+# Offline checks for liter: static analysis + the end-to-end spec. No network,
 # no cmake, no dap -- safe anywhere. There is no standalone lua on this box:
 # `nvim --clean -l` is the Lua runtime.
 #

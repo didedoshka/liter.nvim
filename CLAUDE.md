@@ -1,7 +1,7 @@
-# litre -- session rules
+# liter -- session rules
 
 Imperative task runner for Neovim; personal project, single user, loaded from
-this checkout via lazy.nvim (`~/.config/nvim/lua/plugins/litre.lua`).
+this checkout via lazy.nvim (`~/.config/nvim/lua/plugins/liter.lua`).
 
 - **`readme.md` is the spec** -- it documents shipped behaviour precisely and
   any behaviour change is incomplete until it matches.
@@ -11,9 +11,9 @@ this checkout via lazy.nvim (`~/.config/nvim/lua/plugins/litre.lua`).
 
 ## Layout
 
-`lua/litre/`: `init.lua` public surface (commands + layer; read first),
+`lua/liter/`: `init.lua` public surface (commands + layer; read first),
 `discover.lua` file walk + sandboxed envs, `runner.lua` coroutine runner,
-`lib.lua` the .litre.lua primitives, `term.lua` `litre://` output buffers,
+`lib.lua` the .liter.lua primitives, `term.lua` `liter://` output buffers,
 `params.lua` treesitter write-back, `state.lua` persisted selections,
 `config.lua` opts (read `config.opts` at call time), `cmake.lua` file-API
 helpers for cmake projects.
@@ -23,11 +23,11 @@ helpers for cmake projects.
 - Tasks only run through `runner.run`; primitives find their task via
   `runner.current`, pinned by `runner.resume`. Never resume a task coroutine
   directly.
-- No owned windows, no floats. Output is a `litre://` buffer replaced in place
+- No owned windows, no floats. Output is a `liter://` buffer replaced in place
   on re-run; failures are a single `vim.notify`, never a traceback.
 - Discovery stats exact paths upward only -- **never anything recursive**
   (arc-mount rules, see the global CLAUDE.md; a hook enforces it).
-- `.litre.lua` files re-execute on every load; nothing may cache their contents.
+- `.liter.lua` files re-execute on every load; nothing may cache their contents.
 
 ## Verify
 

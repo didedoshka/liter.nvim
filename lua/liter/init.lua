@@ -1,11 +1,11 @@
--- Public surface: the .litre.lua API (`local l = require("litre")` at the top
+-- Public surface: the .liter.lua API (`local l = require("liter")` at the top
 -- of every file gives l.command, l.with, l.pick, l.ask, l.parameter, l.debug,
 -- l.map -- a module, not injected globals, so lua-ls types the calls)
 -- plus the commands and the layer. Command index:
---   :Litre [task]       run a task by id (or bare name), no arg opens the picker
---   :LitreConfig        edit the innermost .litre.lua (path at cwd when none exists)
+--   :Liter [task]       run a task by id (or bare name), no arg opens the picker
+--   :LiterConfig        edit the innermost .liter.lua (path at cwd when none exists)
 --
--- The layer -- map one key (x in didedoshka's config) to require("litre").layer():
+-- The layer -- map one key (x in didedoshka's config) to require("liter").layer():
 -- opens the fzf-pin picker over every task, map()ped chars shown as [k].
 -- A map()ped char runs its task immediately; verbs run in the picker too
 --   V  param picker    C  edit config    O  show last task's output buffer
@@ -13,18 +13,18 @@
 -- `i` drops into fuzzy search, enter runs the selection.
 local M = {}
 
-local lib = require("litre.lib")
+local lib = require("liter.lib")
 M.command, M.with = lib.command, lib.with
 M.pick, M.ask, M.parameter, M.debug, M.map = lib.pick, lib.ask, lib.parameter, lib.debug, lib.map
 
 local verbs -- filled below; load_tasks() strips map() keys that collide with them
 
 local function load_tasks()
-    local d = require("litre.discover").load()
+    local d = require("liter.discover").load()
     for k in pairs(d.maps) do
         -- "i" belongs to fzf-pin: it re-enables typing inside the picker
         if verbs[k] or k == "i" then
-            vim.notify(("litre: key %q is reserved by the layer; map() ignored"):format(k),
+            vim.notify(("liter: key %q is reserved by the layer; map() ignored"):format(k),
                 vim.log.levels.WARN)
             d.maps[k] = nil
         end
@@ -33,7 +33,7 @@ local function load_tasks()
 end
 
 local function run(task)
-    require("litre.runner").run(task)
+    require("liter.runner").run(task)
 end
 
 local function short(p)
@@ -41,9 +41,9 @@ local function short(p)
 end
 
 -- The task layer as an fzf-pin source. Tasks are not pinnable from inside the
--- picker (keys are declared via map() in .litre.lua), so there is no pin().
+-- picker (keys are declared via map() in .liter.lua), so there is no pin().
 M.source = {
-    prompt = "litre> ",
+    prompt = "liter> ",
     list = function()
         local d = load_tasks()
         local key_of = {}
@@ -51,7 +51,7 @@ M.source = {
             key_of[t.id] = k
         end
         local live = {}
-        for _, t in ipairs(require("litre.runner").running_tasks()) do
+        for _, t in ipairs(require("liter.runner").running_tasks()) do
             live[t.id] = true
         end
         local items = {}
@@ -79,9 +79,9 @@ local NEW = "  new value..."
 
 function M.pick_param()
     local d = load_tasks()
-    local state = require("litre.state")
+    local state = require("liter.state")
     if #d.params == 0 then
-        vim.notify("litre: no params declared in any .litre.lua", vim.log.levels.WARN)
+        vim.notify("liter: no params declared in any .liter.lua", vim.log.levels.WARN)
         return
     end
     local function current(p)
@@ -92,9 +92,9 @@ function M.pick_param()
         return cur or "?"
     end
     -- a function-valued list runs as a task of its own: the runner gives it
-    -- the coroutine that lets it run/pick, and its output a litre:// buffer
+    -- the coroutine that lets it run/pick, and its output a liter:// buffer
     local function choose_computed(p)
-        local runner = require("litre.runner")
+        local runner = require("liter.runner")
         local last = runner.last
         runner.run({
             id = "V " .. p.name,
@@ -113,7 +113,7 @@ function M.pick_param()
         runner.last = last
     end
     vim.ui.select(d.params, {
-        prompt = "litre param",
+        prompt = "liter param",
         format_item = function(p)
             return ("%s = %s  [%s]"):format(p.name, current(p), short(p.file))
         end,
@@ -137,7 +137,7 @@ function M.pick_param()
             end
             vim.ui.input({ prompt = p.name .. " (new): " }, function(nv)
                 if nv and nv ~= ""
-                    and require("litre.params").add_option(p.file, p.name, nv) then
+                    and require("liter.params").add_option(p.file, p.name, nv) then
                     state.set(p.file, p.name, nv)
                 end
             end)
@@ -148,15 +148,15 @@ end
 function M.edit_config()
     -- the raw dir walk, not load_tasks(): a config that fails to load is
     -- exactly the one that needs editing, and load() would drop it
-    local dirs, cwd = require("litre.discover").files()
-    vim.cmd.edit(vim.fs.joinpath(dirs[#dirs] or cwd, ".litre.lua"))
+    local dirs, cwd = require("liter.discover").files()
+    vim.cmd.edit(vim.fs.joinpath(dirs[#dirs] or cwd, ".liter.lua"))
 end
 
 function M.show_output()
-    local runner = require("litre.runner")
-    local buf = runner.last and require("litre.term").buf(runner.last.id)
+    local runner = require("liter.runner")
+    local buf = runner.last and require("liter.term").buf(runner.last.id)
     if not buf then
-        vim.notify("litre: no task output yet", vim.log.levels.WARN)
+        vim.notify("liter: no task output yet", vim.log.levels.WARN)
         return
     end
     vim.api.nvim_win_set_buf(0, buf)
@@ -166,9 +166,9 @@ function M.show_output()
 end
 
 function M.rerun()
-    local runner = require("litre.runner")
+    local runner = require("liter.runner")
     if not runner.last then
-        vim.notify("litre: no task has run yet", vim.log.levels.WARN)
+        vim.notify("liter: no task has run yet", vim.log.levels.WARN)
         return
     end
     local d = load_tasks()
@@ -178,7 +178,7 @@ function M.rerun()
             return
         end
     end
-    vim.notify("litre: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
+    vim.notify("liter: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
 end
 
 -- uppercase: every lowercase key stays free for map() -- r for run was the
@@ -192,9 +192,9 @@ verbs = {
 M.source.verbs = verbs
 
 function M.setup(opts)
-    require("litre.config").setup(opts)
+    require("liter.config").setup(opts)
 
-    vim.api.nvim_create_user_command("Litre", function(o)
+    vim.api.nvim_create_user_command("Liter", function(o)
         if o.args == "" then
             M.layer()
             return
@@ -206,7 +206,7 @@ function M.setup(opts)
                 return
             end
         end
-        vim.notify("litre: no task " .. o.args, vim.log.levels.WARN)
+        vim.notify("liter: no task " .. o.args, vim.log.levels.WARN)
     end, {
         nargs = "?",
         complete = function()
@@ -218,7 +218,7 @@ function M.setup(opts)
         end,
     })
 
-    vim.api.nvim_create_user_command("LitreConfig", M.edit_config, {})
+    vim.api.nvim_create_user_command("LiterConfig", M.edit_config, {})
 end
 
 return M

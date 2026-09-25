@@ -1,4 +1,4 @@
--- cmake helpers for .litre.lua files, on top of cmake's file API: the reply
+-- cmake helpers for .liter.lua files, on top of cmake's file API: the reply
 -- under <build>/.cmake/api/v1/reply lists every target with its type and
 -- artifact path, whatever the generator (`--target help` is Makefile-only and
 -- omitted executables under Ninja, measured). Once the query file exists any
@@ -9,12 +9,12 @@
 --   b.command("./" .. cm.executable_path("build", target)):run()
 --
 -- Both take the build dir the way command's opts.dir does: relative to the calling
--- task's .litre.lua, so they only work inside a task (executables() runs
+-- task's .liter.lua, so they only work inside a task (executables() runs
 -- inside the V picker's task; executable_path() inside Build/Run/Debug).
 local M = {}
 
-local lib = require("litre.lib")
-local runner = require("litre.runner")
+local lib = require("liter.lib")
+local runner = require("liter.runner")
 
 local function resolve(dir)
     local ctx = runner.ctx("cmake")
@@ -73,7 +73,7 @@ end
 
 -- Executable target names of a build dir, sorted. Plants the file-API query
 -- and configures once when no reply exists yet (streams like any sh).
----@param build_dir string relative to the task's .litre.lua
+---@param build_dir string relative to the task's .liter.lua
 ---@return string[]
 function M.executables(build_dir)
     local build = resolve(build_dir)
@@ -91,7 +91,7 @@ end
 
 -- Path of an executable target's binary, relative to the build dir (a target
 -- from a subdirectory lives in that subdirectory).
----@param build_dir string relative to the task's .litre.lua
+---@param build_dir string relative to the task's .liter.lua
 ---@param executable string? target name (a param that is still unset is nil)
 ---@return string
 function M.executable_path(build_dir, executable)

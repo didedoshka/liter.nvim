@@ -1,34 +1,34 @@
--- The .litre.lua standard library, re-exported by require("litre") -- files
+-- The .liter.lua standard library, re-exported by require("liter") -- files
 -- reach it as `l.command` etc. The annotations here are what lua-ls shows there.
 --
 -- Modelled on Go's os/exec: there is no ambient shell state -- no cd, no
 -- exported variables. `command(c, opts)` is a value that runs nothing until
 -- `:run(mode)`, carries its own dir/env, and running it mutates nothing
--- outside itself. Default dir is the directory of the .litre.lua that
+-- outside itself. Default dir is the directory of the .liter.lua that
 -- defines the task. Two modes, one verb (pytest's words):
---   :run()           "live": pty into the task's litre:// buffer, returns exit code
+--   :run()           "live": pty into the task's liter:// buffer, returns exit code
 --   :run("captured") pipes, returns trimmed stdout and the code ($(...) analogue)
 -- Both raise on nonzero exit unless { check = false }: chains read as
 -- `Build(); Run()` and stop at the first failure, set -e style.
 --
 -- c is a string -> `<config.shell> -c` runs it (pipes, $VAR, globs work);
 -- c is a table  -> direct argv, no shell, no quoting pitfalls.
-local config = require("litre.config")
-local runner = require("litre.runner")
-local state = require("litre.state")
-local term = require("litre.term")
+local config = require("liter.config")
+local runner = require("liter.runner")
+local state = require("liter.state")
+local term = require("liter.term")
 
 local M = {}
 
----@class litre.Opts
----@field dir? string relative to the defining .litre.lua's directory (the default); absolute passes through
+---@class liter.Opts
+---@field dir? string relative to the defining .liter.lua's directory (the default); absolute passes through
 ---@field env? table<string, string> extra environment variables for the command
 ---@field check? boolean false: return the exit code instead of raising on nonzero
 ---@field stdin? string|string[] feed standard input; runs on plain pipes, not the pty
 
----@class litre.With a defaults bundle: `command` with the bundle's opts merged in
----@field command fun(c: string|string[], opts?: litre.Opts): litre.Command
----@field with fun(more?: litre.Opts): litre.With a new bundle with `more` merged on top
+---@class liter.With a defaults bundle: `command` with the bundle's opts merged in
+---@field command fun(c: string|string[], opts?: liter.Opts): liter.Command
+---@field with fun(more?: liter.Opts): liter.With a new bundle with `more` merged on top
 
 local function argv(c)
     if type(c) == "table" then
@@ -41,7 +41,7 @@ local function display(c)
     return type(c) == "table" and table.concat(c, " ") or c
 end
 
--- opts.dir resolves against the defining .litre.lua's directory, absolute
+-- opts.dir resolves against the defining .liter.lua's directory, absolute
 -- paths pass through; nil means that directory itself.
 local function resolve_dir(ctx, opts)
     local d = opts and opts.dir
@@ -64,7 +64,7 @@ end
 -- deliver EOF (a stdin-fed `wc -l` hangs forever, measured) and echoes the
 -- fed input back into the output. Filters get pipes; terminals get the pty.
 ---@param c string|string[]
----@param opts litre.Opts
+---@param opts liter.Opts
 ---@return integer code
 local function run_live(c, opts)
     local ctx = runner.ctx("run")
@@ -167,7 +167,7 @@ local function run_live(c, opts)
 end
 
 ---@param c string|string[]
----@param opts litre.Opts
+---@param opts liter.Opts
 ---@return string stdout trimmed
 ---@return integer code
 local function run_captured(c, opts)
@@ -197,18 +197,18 @@ local function run_captured(c, opts)
     return stdout, res.code
 end
 
----@class litre.Command a command and its options; runs nothing until :run()
+---@class liter.Command a command and its options; runs nothing until :run()
 ---@field cmd string|string[] shell string (`<shell> -c`) or argv table (no shell)
----@field opts litre.Opts
+---@field opts liter.Opts
 local Command = {}
 Command.__index = Command
 
--- "live" (default): on a pty into the task's litre:// buffer, returns the
+-- "live" (default): on a pty into the task's liter:// buffer, returns the
 -- exit code. "captured": on pipes, nothing shown, returns trimmed stdout and
 -- the code. Nonzero exit raises either way unless opts.check == false.
 ---@param mode? "live"
 ---@return integer code
----@overload fun(self: litre.Command, mode: "captured"): string, integer
+---@overload fun(self: liter.Command, mode: "captured"): string, integer
 function Command:run(mode)
     mode = mode or "live"
     if mode == "live" then
@@ -224,8 +224,8 @@ end
 -- A plain table: `cmd` and `opts` are public, so a helper can derive a new
 -- command from one it is handed (a wrapper adds env, a retry re-runs it).
 ---@param c string|string[] shell string (`<shell> -c`) or argv table (no shell)
----@param opts? litre.Opts
----@return litre.Command
+---@param opts? liter.Opts
+---@return liter.Command
 function M.command(c, opts)
     return setmetatable({ cmd = c, opts = opts or {} }, Command)
 end
@@ -237,8 +237,8 @@ end
 --   local b = l.with { dir = "build" }
 --   b.command("cmake --build ."):run()
 --   b.with({ env = { ASAN_OPTIONS = "detect_leaks=0" } }).command("./main"):run()
----@param defaults? litre.Opts
----@return litre.With
+---@param defaults? liter.Opts
+---@return liter.With
 function M.with(defaults)
     defaults = defaults or {}
     local function merge(opts)
@@ -301,8 +301,8 @@ function M.ask(prompt, opts)
     return coroutine.yield()
 end
 
--- Declared at .litre.lua top level; returns the persisted selection (or the
--- first option). Selection UI and source write-back live in litre.params.
+-- Declared at .liter.lua top level; returns the persisted selection (or the
+-- first option). Selection UI and source write-back live in liter.params.
 -- Top level ONLY: a param declared inside a task would read a value but never
 -- register while discovery runs, so the picker could not see it -- a trap.
 --
@@ -314,10 +314,10 @@ end
 ---@param options string[]|fun(): string[] a literal list: the picker's "new value..." writes into it
 ---@return string? value the persisted selection, else options[1] (nil for a function)
 function M.parameter(name, options)
-    local discover = require("litre.discover")
+    local discover = require("liter.discover")
     local file = discover.loading
     if not file then
-        error("parameter() belongs at .litre.lua top level", 2)
+        error("parameter() belongs at .liter.lua top level", 2)
     end
     discover.register_param(file, name, options)
     local v = state.get(file, name)
@@ -347,7 +347,7 @@ function M.debug(template, overrides)
     else
         cfg = vim.tbl_deep_extend("force", vim.deepcopy(base), overrides)
     end
-    cfg.dir = nil -- litre option, not a dap field
+    cfg.dir = nil -- liter option, not a dap field
     cfg.name = cfg.name or template
     if type(cfg.program) == "string" and cfg.program:sub(1, 1) ~= "/" then
         cfg.program = vim.fs.joinpath(resolve_dir(ctx, overrides), cfg.program)
@@ -361,9 +361,9 @@ end
 ---@param key string one typable key; vim.keycode() for specials
 ---@param fn function a global task of this file
 function M.map(key, fn)
-    local discover = require("litre.discover")
+    local discover = require("liter.discover")
     if not discover.loading then
-        error("map() belongs at .litre.lua top level", 2)
+        error("map() belongs at .liter.lua top level", 2)
     end
     discover.register_map(key, fn)
 end

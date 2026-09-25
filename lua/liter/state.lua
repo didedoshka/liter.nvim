@@ -1,11 +1,11 @@
 -- Persisted param selections: one JSON file under stdpath("data"), keyed by
--- .litre.lua path, then param name. Read fresh on every access -- .litre.lua files
+-- .liter.lua path, then param name. Read fresh on every access -- .liter.lua files
 -- re-execute constantly and this file is tiny, so caching would only add a
 -- staleness bug surface.
 local M = {}
 
 local function path()
-    return vim.fs.joinpath(vim.fn.stdpath("data"), "litre", "params.json")
+    return vim.fs.joinpath(vim.fn.stdpath("data"), "liter", "parameters.json")
 end
 
 local function read()

@@ -29,7 +29,7 @@ clean() {
 # Distinguish "this edit broke it" from "it was already broken": run the same
 # suite at HEAD in a throwaway worktree and compare the failing test names.
 # Measured: an fzf-pin refactor once broke this repo's spec, and the next
-# unrelated litre edit got blamed for it.
+# unrelated liter edit got blamed for it.
 fails() { grep -E '^\s*FAIL' <<<"$1" | sed 's/^\s*//' | sort -u; }
 now_fails="$(fails "$(clean "$out")")"
 head_fails=""
