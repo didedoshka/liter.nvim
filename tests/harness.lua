@@ -36,8 +36,10 @@ function M.eq(got, want, msg)
     end
 end
 
+-- absolute and taken at load: the advanced spec cds into temp trees before it asks
+local this = vim.fs.normalize(vim.fs.abspath(debug.getinfo(1, "S").source:sub(2)))
+
 function M.root()
-    local this = debug.getinfo(1, "S").source:sub(2)
     return vim.fs.dirname(vim.fs.dirname(this))
 end
 

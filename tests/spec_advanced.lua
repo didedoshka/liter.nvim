@@ -579,7 +579,7 @@ end)
 -- the per-char closures the real fzf binds would fire, so the semantics are
 -- testable without a UI. The sibling checkout is the dependency, like lazy.nvim
 -- loads it in the real config.
-vim.opt.rtp:prepend(vim.fn.expand("~/personal/fzf-pin.nvim"))
+vim.opt.rtp:prepend(vim.fs.joinpath(vim.fs.dirname(t.root()), "fzf-pin.nvim"))
 local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
     local built = fzfpin.build(liter.source)
