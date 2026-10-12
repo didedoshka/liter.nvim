@@ -248,7 +248,7 @@ by hand in every task — zero liter surface but the boilerplate metastasizes.
   to the definition); verbs are `V/C/O/R` (lowercase with v2, uppercase since
   2026-09-24, see decision 16; `k` was a verb until 2026-08-12, see decision 15).
 - Discoverability (decided 2026-08-06): the blind `getcharstr` layer is gone.
-  `x` opens fzf-pin's picker (shared machinery, `~/personal/fzf-pin.nvim`) with
+  `x` opens fzf-pin's picker (shared machinery, `fzf-pin.nvim`) with
   every task listed and the map()ped chars live as binds — same keystrokes as
   before, but the state is visible. `i` is reserved on top of the verbs: it is
   fzf-pin's enter-search key. liter gained fzf-lua/fzf-pin as runtime deps of
