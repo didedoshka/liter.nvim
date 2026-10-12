@@ -32,6 +32,17 @@ fi
 
 if [[ "$what" == "all" || "$what" == "spec" ]]; then
     echo "== spec (nvim --clean)"
+    # fzf-pin, for the advanced spec's layer tests: FZF_PIN_DIR when the caller
+    # sets it (fzf-pin's hook points it at the checkout under edit), else where
+    # lazy.nvim loads it from -- a checkout next to this one, or lazy's clone.
+    # Found here because the spec runs with a sandboxed XDG_DATA_HOME.
+    if [[ -z "${FZF_PIN_DIR:-}" ]]; then
+        FZF_PIN_DIR="$(dirname "$repo")/fzf-pin.nvim"
+        [[ -d "$FZF_PIN_DIR" ]] \
+            || FZF_PIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/fzf-pin.nvim"
+    fi
+    export FZF_PIN_DIR
+    echo "  fzf-pin: $FZF_PIN_DIR"
     # isolated XDG_DATA_HOME so param state never touches the real one
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT

@@ -577,9 +577,8 @@ end)
 -- --- the x layer ------------------------------------------------------------
 -- The layer is liter.source driven through fzf-pin's picker; build() returns
 -- the per-char closures the real fzf binds would fire, so the semantics are
--- testable without a UI. The sibling checkout is the dependency, like lazy.nvim
--- loads it in the real config.
-vim.opt.rtp:prepend(vim.fs.joinpath(vim.fs.dirname(t.root()), "fzf-pin.nvim"))
+-- testable without a UI. run.sh finds fzf-pin where lazy.nvim loads it from.
+vim.opt.rtp:prepend(assert(vim.env.FZF_PIN_DIR, "run via tests/run.sh, which finds fzf-pin"))
 local fzfpin = require("fzf-pin.picker")
 local function layer_with(key)
     local built = fzfpin.build(liter.source)
