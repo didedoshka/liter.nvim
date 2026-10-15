@@ -133,6 +133,7 @@ binary's path for `Run`/`Debug`. Both resolve `build_dir` like `command`'s
 | --- | --- |
 | `:Liter [task]` | run by id or bare name; no argument opens the picker |
 | `:LiterConfig` | edit the innermost `.liter.lua` (path at cwd if none exists) |
+| `:LiterCloseAll` | wipe every `liter://` buffer, closing the windows that show them; a running task's buffer stays |
 
 Map a key to `require("liter").layer()`: it opens the fzf-pin picker over every
 task (running ones marked), then every param as `name = value`. Activating a

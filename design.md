@@ -483,6 +483,11 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     BufEnter); a buffer-local BufEnter now stops it -- the same guard on
     TermEnter did not (measured).
 
+24. **`:LiterCloseAll` (2026-10-15):** a buffer per run piles them up.
+    It wipes (they are dead terminals, nothing to keep) every `liter://`
+    buffer, windows close the plain `:bwipeout` way; a running task's buffer
+    stays -- closing output must not kill a build. Command only, no verb.
+
 Integration (nvim config): `lua/plugins/liter.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

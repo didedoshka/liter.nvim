@@ -4,6 +4,7 @@
 -- commands and the layer. Command index:
 --   :Liter [task]       run a task by id (or bare name), no arg opens the picker
 --   :LiterConfig        edit the innermost .liter.lua (path at cwd when none exists)
+--   :LiterCloseAll      wipe every liter:// buffer except running tasks' ones
 --
 -- The layer -- map one key (x in didedoshka's config) to require("liter").layer():
 -- opens the fzf-pin picker over every task and parameter, pinned chars shown
@@ -217,6 +218,32 @@ function M.rerun()
     vim.notify("liter: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
 end
 
+-- a running task keeps its buffer: closing output must not silently stop a
+-- build, and its next output would stream into a buffer nobody can see
+function M.close_all()
+    local term = require("liter.term")
+    local keep = {}
+    for _, task in ipairs(require("liter.runner").running_tasks()) do
+        local b = term.buf(task.id)
+        if b then
+            keep[b] = true
+        end
+    end
+    local kept = 0
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.startswith(vim.api.nvim_buf_get_name(b), "liter://") then
+            if keep[b] then
+                kept = kept + 1
+            else
+                vim.api.nvim_buf_delete(b, { force = true })
+            end
+        end
+    end
+    if kept > 0 then
+        vim.notify(("liter: kept %d running task buffer(s)"):format(kept))
+    end
+end
+
 -- uppercase: every lowercase key stays free for pins -- r for run was the
 -- first real config's collision when these were lowercase
 local verbs = {
@@ -254,6 +281,7 @@ function M.setup(opts)
     })
 
     vim.api.nvim_create_user_command("LiterConfig", M.edit_config, {})
+    vim.api.nvim_create_user_command("LiterCloseAll", M.close_all, {})
 end
 
 return M
