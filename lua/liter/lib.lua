@@ -307,7 +307,7 @@ end
 -- register while discovery runs, so the picker could not see it -- a trap.
 --
 -- A function instead of a list is not called here (top level runs on every
--- load): the V picker runs it as a task, so it may run/pick like any task
+-- load): activating the param in the layer runs it as a task, so it may run/pick like any task
 -- body, and picks from what it returns. No first option then -- nil until a
 -- value has been chosen once.
 ---@param name string
@@ -354,18 +354,6 @@ function M.debug(template, overrides)
     end
     cfg.cwd = cfg.cwd or resolve_dir(ctx, overrides)
     require("dap").run(cfg)
-end
-
--- x-layer key for a task, declared next to the task itself. Discovery
--- resolves the function back to its global name.
----@param key string one typable key; vim.keycode() for specials
----@param fn function a global task of this file
-function M.map(key, fn)
-    local discover = require("liter.discover")
-    if not discover.loading then
-        error("map() belongs at .liter.lua top level", 2)
-    end
-    discover.register_map(key, fn)
 end
 
 return M

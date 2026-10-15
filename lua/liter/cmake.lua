@@ -10,7 +10,7 @@
 --
 -- Both take the build dir the way command's opts.dir does: relative to the calling
 -- task's .liter.lua, so they only work inside a task (executables() runs
--- inside the V picker's task; executable_path() inside Build/Run/Debug).
+-- inside the param's value-picker task; executable_path() inside Build/Run/Debug).
 local M = {}
 
 local lib = require("liter.lib")
@@ -96,11 +96,11 @@ end
 ---@return string
 function M.executable_path(build_dir, executable)
     if not executable then
-        runner.abort("cmake: no target chosen yet -- pick one with V")
+        runner.abort("cmake: no target chosen yet -- pick one in the layer")
     end
     local exes = read_executables(resolve(build_dir)) or {}
     if not exes[executable] then
-        runner.abort(("cmake: no executable target %q (V refreshes the list)"):format(executable))
+        runner.abort(("cmake: no executable target %q (re-picking the param refreshes the list)"):format(executable))
     end
     return exes[executable]
 end

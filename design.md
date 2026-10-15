@@ -467,6 +467,22 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     opts?)`. `param` becomes `parameter`: typed once per file at top level,
     so the abbreviation saves nothing. `debug` and `map` already fit.
 
+23. **Pins replace `map()`, params join the layer, a buffer per run
+    (2026-10-15):** reverses 5 and 15's "a buffer per task". Keys now work
+    the way the config's `s` and no-tmux's `<CR>` pickers do: a free char
+    pins, ctrl-x unpins, the pins live on disk (fzf-pin's store, one file per
+    cwd since task ids are cwd-relative) rather than in `.liter.lua`. With no
+    "current task" to pin, the free char pins the highlighted entry -- fzf-pin's
+    `pin(char, item)` grew the second argument for this. Params are entries in
+    the same picker (activating one opens its value picker), so they pin the
+    same way; `V` went with that, its whole job now being one entry away.
+    `map()` and its reserved-key and single-key checks are gone. Every run
+    gets its own `liter://<id>_<mm-dd-HH:MM:SS>` buffer so earlier output
+    stays to compare against. Opening one from another terminal used to stay
+    in terminal mode (measured: the mode is still "t" in the buffer's
+    BufEnter); a buffer-local BufEnter now stops it -- the same guard on
+    TermEnter did not (measured).
+
 Integration (nvim config): `lua/plugins/liter.lua` wires setup with a `cpp`
 template (type `gdb` -- the arc-aware adapter from `plugins/dap.lua`); normal-
 mode `x` is the layer (the visual-mode habit stays). The nvim-as-tmux half

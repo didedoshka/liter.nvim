@@ -20,7 +20,6 @@ function Run()
     Build()
     b.command("./main " .. opt):run()
 end
-l.map("r", Run)
 
 function Dbg()
     Build()
@@ -52,9 +51,8 @@ exported next to lowercase helpers. A lowercase task still runs.
 | `l.with { dir=, env= }` | defaults bundle: `b.command` with those opts merged in; `b.with { ... }` stacks |
 | `l.pick(items, opts?)` | `vim.ui.select` through the task coroutine; returns the choice |
 | `l.ask(prompt, opts?)` | `vim.ui.input` likewise; `opts` are its other options (`default`, ...) |
-| `l.parameter(name, { ... })` | declare a param; returns its current value (top level only); a function list is run by `V` |
+| `l.parameter(name, { ... })` | declare a param; returns its current value (top level only); a function list runs when the param is activated in the layer |
 | `l.debug(template, overrides)` | merge overrides onto a `setup()` dap template, `dap.run` it |
-| `l.map(key, fn)` | give a global task a layer key (top level only; one typable key -- use `vim.keycode` for specials) |
 
 The calls are annotated in `lib.lua`, so lua-ls gives hover, signature help
 and completion on `l.` once it can see this checkout (lazydev adds it on the
@@ -93,15 +91,19 @@ and completion on `l.` once it can see this checkout (lazydev adds it on the
 
 ## Output buffers
 
-A live `run` streams into a dead terminal buffer named `liter://<task id>` -- the
-command runs on a real pty sized to the window, with stderr merged in, so
-programs see a tty on every fd and color and progress-bar as in a terminal --
-but no shell sits behind the buffer. Re-running a task
-replaces the buffer under the same name; windows showing the old run switch to
-the new one, otherwise it opens in the current window like any buffer (no
-floats, no owned windows). Deleting the buffer mid-run is fine: the task's
-next live `run` opens a fresh one. `<C-c>` in the buffer (normal mode) kills the
-running task, as it would in a real terminal. Programs that want stdin mid-run
+A live `run` streams into a dead terminal buffer named
+`liter://<task id>_<mm-dd-HH:MM:SS>` (the run's start; `-2`, `-3`, ... on a
+same-second re-run) -- the command runs on a real pty sized to the window, with
+stderr merged in, so programs see a tty on every fd and color and progress-bar
+as in a terminal -- but no shell sits behind the buffer. Every run gets a
+buffer of its own and earlier runs' buffers stay; windows showing the previous
+run switch to the new one, otherwise it opens in the current window like any
+buffer (no floats, no owned windows). Opening the buffer never leaves you in
+terminal mode, even from another terminal (fzf's window) -- there is no stdin
+to type into. Deleting the buffer mid-run is fine: the task's next live `run`
+opens a fresh one. `<C-c>` in the buffer (normal mode) kills the running task,
+as it would in a real terminal; in an earlier run's buffer it says that run has
+finished. Programs that want stdin mid-run
 should be anticipated with `pick`/`ask` in the task; genuinely interactive
 work is what `:terminal` is for.
 
@@ -115,7 +117,7 @@ lists are refused with a message). If the file is open in a buffer the edit
 goes through the buffer -- unsaved changes survive -- and is written.
 
 `l.parameter("name", function() ... end)` never runs the function at top level.
-`V` on that param runs it as a task of its own (`run`/`pick` work inside,
+Activating that param in the layer runs it as a task of its own (`run`/`pick` work inside,
 output streams to a `liter://` buffer as usual) and opens the value picker on
 what it returns; no "new value..." entry. Until a value has been chosen once
 the param reads `nil`. `require("liter.cmake")` is the ready-made case:
@@ -133,17 +135,24 @@ binary's path for `Run`/`Debug`. Both resolve `build_dir` like `command`'s
 | `:LiterConfig` | edit the innermost `.liter.lua` (path at cwd if none exists) |
 
 Map a key to `require("liter").layer()`: it opens the fzf-pin picker over every
-task, `map()`ped keys shown as `[k]`, running tasks marked. Keys work inside the
-picker (reserved; `map()` to them warns and is ignored):
+task (running ones marked), then every param as `name = value`. Activating a
+task runs it; activating a param opens its value picker → "new value...".
+Keys work inside the picker:
 
 | key | does |
 | --- | --- |
-| `V` | param picker → value picker → "new value..." |
+| pinned lowercase | activates the entry pinned to it |
+| free lowercase | pins the highlighted entry to it (move with ctrl-n/ctrl-p first) |
+| `ctrl-x` | unpins the highlighted entry |
 | `C` | edit config |
 | `O` | show the last task's output buffer in the current window |
 | `R` | re-run the last task |
-| `i` | fzf-pin's search key: unbinds the chars, type to filter, enter runs |
-| other lowercase | the task `map()`ped to it (free chars warn) |
+| `i` | fzf-pin's search key: unbinds the chars, type to filter, enter activates |
+
+Pins are saved in fzf-pin's store, one file per cwd
+(`stdpath("state")/fzf-pin/liter/<cwd>.json`): task ids are relative to cwd,
+so a pin belongs to the directory it was made in. A pin whose task or param
+no longer exists is simply not shown, and its key counts as free.
 
 The picker opens even with no tasks discovered, so `C` can create the first
 `.liter.lua`. The layer source is `require("liter").source` (an

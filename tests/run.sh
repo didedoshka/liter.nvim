@@ -43,13 +43,14 @@ if [[ "$what" == "all" || "$what" == "spec" ]]; then
     fi
     export FZF_PIN_DIR
     echo "  fzf-pin: $FZF_PIN_DIR"
-    # isolated XDG_DATA_HOME so param state never touches the real one
+    # isolated XDG_DATA_HOME/XDG_STATE_HOME so param state and layer pins
+    # never touch the real ones
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
     # one nvim per spec: the advanced spec consumes the typeahead and mutates
     # config.opts, so it must not share a process with the base spec
     for spec in "$repo"/tests/spec*.lua; do
-        XDG_DATA_HOME="$tmp" timeout 120 nvim --clean --headless -l "$spec" || rc=1
+        XDG_DATA_HOME="$tmp" XDG_STATE_HOME="$tmp/state" timeout 120 nvim --clean --headless -l "$spec" || rc=1
     done
 fi
 

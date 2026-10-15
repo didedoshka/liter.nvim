@@ -1,8 +1,8 @@
--- liter://<task id> output buffers: dead terminals. A pty job streams in, so
--- colors and progress bars render, but there is no shell behind the buffer --
--- tasks are re-runnable programs, not sessions. One buffer per task, replaced
--- on re-run so windows showing the old run switch to the new one (the
--- arc-nvim scratch convention: re-viewing refreshes, never piles duplicates).
+-- liter://<task id>_<start time> output buffers: dead terminals. A pty job
+-- streams in, so colors and progress bars render, but there is no shell behind
+-- the buffer -- tasks are re-runnable programs, not sessions. Every run gets a
+-- buffer of its own and earlier runs stay around to compare against; windows
+-- showing the previous run switch to the new one.
 --
 -- No owned window (the oil.nvim rule): if the previous run is visible
 -- somewhere, the new one streams there without stealing focus; otherwise the
@@ -10,6 +10,22 @@
 local M = {}
 
 local bufs = {} -- task id -> buffer of its latest run
+
+-- a task re-run within the same second (R on a quick one) must not collide
+-- with the previous run's name
+local function unique_name(id)
+    local base = ("liter://%s_%s"):format(id, os.date("%m-%d-%H:%M:%S"))
+    local taken = {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        taken[vim.api.nvim_buf_get_name(b)] = true
+    end
+    local name, n = base, 1
+    while taken[name] do
+        n = n + 1
+        name = ("%s-%d"):format(base, n)
+    end
+    return name
+end
 
 -- Create the fresh terminal buffer for a run and place it. Returns the
 -- channel to feed output into.
@@ -36,14 +52,25 @@ function M.open(id)
             vim.cmd.stopinsert()
         end
     end
-    if old and vim.api.nvim_buf_is_valid(old) then
-        vim.api.nvim_buf_delete(old, { force = true })
-    end
-    vim.api.nvim_buf_set_name(buf, "liter://" .. id)
+    vim.api.nvim_buf_set_name(buf, unique_name(id))
+    -- the same leak whenever the buffer is opened from another terminal, e.g.
+    -- the `s` picker's fzf window (measured: the mode is still "t" here)
+    vim.api.nvim_create_autocmd("BufEnter", {
+        buffer = buf,
+        callback = function()
+            if vim.api.nvim_get_mode().mode == "t" then
+                vim.cmd.stopinsert()
+            end
+        end,
+    })
     -- ctrl-c interrupts the buffer's task, the reflex from real terminals --
     -- there is no stdin behind a dead terminal to deliver it to the process,
     -- so it goes through runner.kill (a second ctrl-c escalates to SIGKILL)
     vim.keymap.set("n", "<C-c>", function()
+        if bufs[id] ~= buf then
+            vim.notify("liter: this run of " .. id .. " has finished", vim.log.levels.WARN)
+            return
+        end
         local runner = require("liter.runner")
         for _, task in ipairs(runner.running_tasks()) do
             if task.id == id then

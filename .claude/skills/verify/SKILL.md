@@ -13,9 +13,9 @@ tests/run.sh spec     # just the spec
 ```
 
 The spec is end-to-end on `nvim --clean`: it builds a temp tree of nested
-`.liter.lua` files and drives discovery (nesting, prefixes, locals,
-maps), the runner (both shell colors, streaming into `liter://` buffers, buffer
-replacement on re-run, error semantics both ways), params (state persistence
+`.liter.lua` files and drives discovery (nesting, prefixes, locals),
+the layer's pins, the runner (both shell colors, streaming into `liter://` buffers, a buffer
+per run, error semantics both ways), params (state persistence
 and treesitter write-back: single-line, multiline, through a dirty buffer,
 computed-list refusal) and the dap merge against a stubbed `dap.run`.
 A PostToolUse hook runs the whole suite on every Lua edit. There is no
@@ -26,8 +26,11 @@ standalone lua on this box; `nvim --clean -l` is the runtime.
 The spec cannot press keys or see windows. After changes to these, check by
 hand in a real nvim with the config loaded:
 
-- **the layer**: `x` picker, `xV` param flow (fzf-lua renders it), `x<key>`
-  mapped task, `xO`/`xR`; Esc closes the picker.
+- **the layer**: `x` picker, a param's value flow (fzf-lua renders it),
+  pinning the highlighted entry with a free key and `x<key>` on it,
+  `xO`/`xR`; Esc closes the picker.
+- **terminal mode**: opening a `liter://` buffer from another terminal
+  (`s`'s fzf window) lands in normal mode -- the spec cannot see modes.
 - **window placement**: output buffer takes the current window when hidden,
   stays put when visible in a split; autoscroll while streaming.
 - **`debug()`**: needs the real gdb adapter from the nvim config

@@ -1,35 +1,24 @@
 -- Public surface: the .liter.lua API (`local l = require("liter")` at the top
--- of every file gives l.command, l.with, l.pick, l.ask, l.parameter, l.debug,
--- l.map -- a module, not injected globals, so lua-ls types the calls)
--- plus the commands and the layer. Command index:
+-- of every file gives l.command, l.with, l.pick, l.ask, l.parameter, l.debug
+-- -- a module, not injected globals, so lua-ls types the calls) plus the
+-- commands and the layer. Command index:
 --   :Liter [task]       run a task by id (or bare name), no arg opens the picker
 --   :LiterConfig        edit the innermost .liter.lua (path at cwd when none exists)
 --
 -- The layer -- map one key (x in didedoshka's config) to require("liter").layer():
--- opens the fzf-pin picker over every task, map()ped chars shown as [k].
--- A map()ped char runs its task immediately; verbs run in the picker too
---   V  param picker    C  edit config    O  show last task's output buffer
---   R  re-run last
--- `i` drops into fuzzy search, enter runs the selection.
+-- opens the fzf-pin picker over every task and parameter, pinned chars shown
+-- as [k]. A pinned char runs its task or opens its parameter's value picker; a
+-- free char pins the highlighted entry, ctrl-x unpins it. Verbs:
+--   C  edit config    O  show last task's output buffer    R  re-run last
+-- `i` drops into fuzzy search, enter activates the selection.
 local M = {}
 
 local lib = require("liter.lib")
 M.command, M.with = lib.command, lib.with
-M.pick, M.ask, M.parameter, M.debug, M.map = lib.pick, lib.ask, lib.parameter, lib.debug, lib.map
-
-local verbs -- filled below; load_tasks() strips map() keys that collide with them
+M.pick, M.ask, M.parameter, M.debug = lib.pick, lib.ask, lib.parameter, lib.debug
 
 local function load_tasks()
-    local d = require("liter.discover").load()
-    for k in pairs(d.maps) do
-        -- "i" belongs to fzf-pin: it re-enables typing inside the picker
-        if verbs[k] or k == "i" then
-            vim.notify(("liter: key %q is reserved by the layer; map() ignored"):format(k),
-                vim.log.levels.WARN)
-            d.maps[k] = nil
-        end
-    end
-    return d
+    return require("liter.discover").load()
 end
 
 local function run(task)
@@ -40,109 +29,156 @@ local function short(p)
     return vim.fn.fnamemodify(p, ":~")
 end
 
--- The task layer as an fzf-pin source. Tasks are not pinnable from inside the
--- picker (keys are declared via map() in .liter.lua), so there is no pin().
+local NEW = "  new value..."
+
+local function current(p)
+    local cur = require("liter.state").get(p.file, p.name)
+    if cur == nil and type(p.options) == "table" then
+        cur = p.options[1]
+    end
+    return cur or "?"
+end
+
+-- a function-valued list runs as a task of its own: the runner gives it the
+-- coroutine that lets it run/pick, and its output a liter:// buffer
+local function choose_computed(p)
+    local runner = require("liter.runner")
+    local last = runner.last
+    runner.run({
+        id = "parameter " .. p.name,
+        name = p.name,
+        file = p.file,
+        dir = vim.fs.dirname(p.file),
+        fn = function()
+            local v = lib.pick(p.options(), { prompt = p.name })
+            if v ~= nil then
+                require("liter.state").set(p.file, p.name, v)
+            end
+        end,
+    })
+    -- run() records every task as the R verb's target; choosing a value
+    -- is not something to re-run
+    runner.last = last
+end
+
+-- the value picker of one param, with a trailing "new value..." that prompts
+-- and writes the option back into the .liter.lua
+function M.choose_value(p)
+    local state = require("liter.state")
+    if type(p.options) == "function" then
+        choose_computed(p)
+        return
+    end
+    local options = vim.deepcopy(p.options)
+    table.insert(options, NEW)
+    vim.ui.select(options, { prompt = p.name }, function(v)
+        if v == nil then
+            return
+        end
+        if v ~= NEW then
+            state.set(p.file, p.name, v)
+            return
+        end
+        vim.ui.input({ prompt = p.name .. " (new): " }, function(nv)
+            if nv and nv ~= ""
+                and require("liter.params").add_option(p.file, p.name, nv) then
+                state.set(p.file, p.name, nv)
+            end
+        end)
+    end)
+end
+
+-- Pins live in fzf-pin's store, one file per cwd (/ encoded as %, like the
+-- config's bookmarks): task ids are relative to cwd, so a pin only means
+-- something from the directory it was made in.
+local function ns()
+    return "liter/" .. vim.fs.normalize(vim.fn.getcwd()):gsub("/", "%%")
+end
+
+-- what a pin stores: a task by id, a param by file and name
+local function pin_key(entry)
+    if entry.kind == "task" then
+        return "task " .. entry.task.id
+    end
+    return ("parameter %s %s"):format(entry.param.file, entry.param.name)
+end
+
+-- The layer as an fzf-pin source: every task, then every param.
 M.source = {
     prompt = "liter> ",
     list = function()
         local d = load_tasks()
-        local key_of = {}
-        for k, t in pairs(d.maps) do
-            key_of[t.id] = k
+        local char_of = {}
+        for c, key in pairs(require("fzf-pin.store").load(ns())) do
+            char_of[key] = c
         end
         local live = {}
         for _, t in ipairs(require("liter.runner").running_tasks()) do
             live[t.id] = true
         end
-        local items = {}
+        local entries = {}
         for _, t in ipairs(d.tasks) do
-            table.insert(items, {
+            table.insert(entries, {
+                kind = "task",
+                task = t,
                 label = ("%-28s %s%s"):format(t.id, short(t.dir),
                     live[t.id] and "  (running)" or ""),
-                char = key_of[t.id],
-                data = t,
             })
+        end
+        for _, p in ipairs(d.params) do
+            table.insert(entries, {
+                kind = "parameter",
+                param = p,
+                label = ("%-28s %s"):format(p.name .. " = " .. current(p),
+                    short(vim.fs.dirname(p.file))),
+            })
+        end
+        local items = {}
+        for _, e in ipairs(entries) do
+            table.insert(items, { label = e.label, char = char_of[pin_key(e)], data = e })
         end
         return items
     end,
     activate = function(item)
-        run(item.data)
+        if item.data.kind == "task" then
+            run(item.data.task)
+        else
+            M.choose_value(item.data.param)
+        end
+    end,
+    pin = function(char, item)
+        if not item then
+            vim.notify("liter: nothing highlighted to pin", vim.log.levels.WARN)
+            return
+        end
+        local store = require("fzf-pin.store")
+        local pins = store.load(ns())
+        local key = pin_key(item.data)
+        for c, k in pairs(pins) do
+            if k == key then
+                vim.notify("liter: already on " .. c .. " (ctrl-x it to move)",
+                    vim.log.levels.WARN)
+                return
+            end
+        end
+        pins[char] = key
+        store.save(ns(), pins)
+        vim.notify(("pinned %s to %s"):format(vim.trim(item.label:match("^%S+")), char))
+    end,
+    unpin = function(item)
+        if not item.char then
+            return
+        end
+        local store = require("fzf-pin.store")
+        local pins = store.load(ns())
+        pins[item.char] = nil
+        store.save(ns(), pins)
     end,
     -- verbs attached below, once they exist
 }
 
 function M.layer()
     require("fzf-pin").pick(M.source)
-end
-
-local NEW = "  new value..."
-
-function M.pick_param()
-    local d = load_tasks()
-    local state = require("liter.state")
-    if #d.params == 0 then
-        vim.notify("liter: no params declared in any .liter.lua", vim.log.levels.WARN)
-        return
-    end
-    local function current(p)
-        local cur = state.get(p.file, p.name)
-        if cur == nil and type(p.options) == "table" then
-            cur = p.options[1]
-        end
-        return cur or "?"
-    end
-    -- a function-valued list runs as a task of its own: the runner gives it
-    -- the coroutine that lets it run/pick, and its output a liter:// buffer
-    local function choose_computed(p)
-        local runner = require("liter.runner")
-        local last = runner.last
-        runner.run({
-            id = "V " .. p.name,
-            name = p.name,
-            file = p.file,
-            dir = vim.fs.dirname(p.file),
-            fn = function()
-                local v = lib.pick(p.options(), { prompt = p.name })
-                if v ~= nil then
-                    state.set(p.file, p.name, v)
-                end
-            end,
-        })
-        -- run() records every task as the R verb's target; choosing a value
-        -- is not something to re-run
-        runner.last = last
-    end
-    vim.ui.select(d.params, {
-        prompt = "liter param",
-        format_item = function(p)
-            return ("%s = %s  [%s]"):format(p.name, current(p), short(p.file))
-        end,
-    }, function(p)
-        if not p then
-            return
-        end
-        if type(p.options) == "function" then
-            choose_computed(p)
-            return
-        end
-        local options = vim.deepcopy(p.options)
-        table.insert(options, NEW)
-        vim.ui.select(options, { prompt = p.name }, function(v)
-            if v == nil then
-                return
-            end
-            if v ~= NEW then
-                state.set(p.file, p.name, v)
-                return
-            end
-            vim.ui.input({ prompt = p.name .. " (new): " }, function(nv)
-                if nv and nv ~= ""
-                    and require("liter.params").add_option(p.file, p.name, nv) then
-                    state.set(p.file, p.name, nv)
-                end
-            end)
-        end)
-    end)
 end
 
 function M.edit_config()
@@ -181,10 +217,9 @@ function M.rerun()
     vim.notify("liter: task " .. runner.last.id .. " no longer exists", vim.log.levels.WARN)
 end
 
--- uppercase: every lowercase key stays free for map() -- r for run was the
+-- uppercase: every lowercase key stays free for pins -- r for run was the
 -- first real config's collision when these were lowercase
-verbs = {
-    V = M.pick_param,
+local verbs = {
     C = M.edit_config,
     O = M.show_output,
     R = M.rerun,

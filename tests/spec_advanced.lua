@@ -188,7 +188,6 @@ end
 function streamer()
     l.command({ "printf", "from-streamer" }):run()
 end
-l.map("b", withbundle)
 ]])
 
 write(vim.fs.joinpath(tmp, "broken", ".liter.lua"), [[
@@ -197,24 +196,6 @@ function oops(
 
 write(vim.fs.joinpath(tmp, "rterr", ".liter.lua"), [[
 error("top level boom")
-]])
-
-write(vim.fs.joinpath(tmp, "weird", ".liter.lua"), [[
-local l = require("liter")
-function real_task()
-end
-l.map("x", real_task)
-l.map("z", function() end)
-l.map("R", real_task)
-l.map("i", real_task)
-]])
-
-write(vim.fs.joinpath(tmp, "badmap", ".liter.lua"), [[
-local l = require("liter")
-function mc_task()
-end
-l.map("gd", mc_task)
-l.map(vim.keycode("<F5>"), mc_task)
 ]])
 
 vim.cmd.cd(work)
@@ -454,34 +435,11 @@ t.test("ids carry one .. per level between cwd and the file", function()
     end)
 end)
 
-t.test("map() to a non-global is skipped with a warning", function()
-    at(vim.fs.joinpath(tmp, "weird"), function()
-        t.notified = {}
-        local d = discover.load()
-        t.ok(notified('map("z") target is not a global'),
-            "unexpected: " .. vim.inspect(t.notified))
-        t.eq(d.maps["z"], nil)
-        t.ok(d.maps["x"], "the resolvable map was dropped as well")
-    end)
-end)
-
-t.test("map() on a key the layer can never deliver is skipped with a warning", function()
-    at(vim.fs.joinpath(tmp, "badmap"), function()
-        t.notified = {}
-        local d = discover.load()
-        t.ok(notified('map("gd") is not a single key'),
-            "unexpected: " .. vim.inspect(t.notified))
-        t.eq(d.maps["gd"], nil)
-        t.ok(d.maps[vim.keycode("<F5>")], "a vim.keycode special key should be accepted")
-    end)
-end)
-
--- A file registers params and maps as it executes, so anything it registered
+-- A file registers params as it executes, so anything it registered
 -- before raising is already in the collector when the error unwinds it.
 write(vim.fs.joinpath(tmp, "ghost", ".liter.lua"), [[
 local l = require("liter")
 local mode = l.parameter("ghost_param", { "x", "y" })
-l.map("g", function() end)
 function ghost_task()
 end
 error("boom after registering")
@@ -497,14 +455,6 @@ t.test("a file that raises after parameter() does not leak the param", function(
             t.ok(p.name ~= "ghost_param",
                 "param from a file that failed to load: " .. vim.inspect(d.params))
         end
-    end)
-end)
-
-t.test("a file that raises after map() does not leak the mapping", function()
-    at(vim.fs.joinpath(tmp, "ghost"), function()
-        t.notified = {}
-        local d = discover.load()
-        t.eq(d.maps["g"], nil, "mapping from a file that failed to load survived")
     end)
 end)
 
@@ -563,61 +513,95 @@ t.test("a global named after a primitive is just a task: nothing is injected", f
     end)
 end)
 
-t.test("a map() on a layer verb or on i is stripped when the layer loads", function()
-    at(vim.fs.joinpath(tmp, "weird"), function()
-        t.notified = {}
-        liter.source.list()
-        t.ok(notified('key "R" is reserved by the layer'),
-            "unexpected: " .. vim.inspect(t.notified))
-        t.ok(notified('key "i" is reserved by the layer'),
-            "unexpected: " .. vim.inspect(t.notified))
-    end)
-end)
-
 -- --- the x layer ------------------------------------------------------------
 -- The layer is liter.source driven through fzf-pin's picker; build() returns
 -- the per-char closures the real fzf binds would fire, so the semantics are
 -- testable without a UI. run.sh finds fzf-pin where lazy.nvim loads it from.
 vim.opt.rtp:prepend(assert(vim.env.FZF_PIN_DIR, "run via tests/run.sh, which finds fzf-pin"))
 local fzfpin = require("fzf-pin.picker")
-local function layer_with(key)
+-- press key with the entry containing `highlight` under fzf's cursor
+local function layer_with(key, highlight)
     local built = fzfpin.build(liter.source)
-    built.entries() -- populates the char lookup, as fzf listing entries would
+    local selected = {}
+    for _, e in ipairs(built.entries()) do -- populates the char lookup, as fzf would
+        if highlight and e:find(highlight, 1, true) then
+            selected = { e }
+        end
+    end
     -- uppercase verbs are bound raw and dispatched by their underscore name
     local action = built.actions[key] or built.actions["_verb_" .. key:lower()]
-    action()
+    action(selected)
 end
 
-t.test("layer: a map()ped key runs its task", function()
+local function entry(needle)
+    for _, e in ipairs(fzfpin.build(liter.source).entries()) do
+        if e:find(needle, 1, true) then
+            return e
+        end
+    end
+end
+
+t.test("layer: a free key pins the highlighted task, which then runs on that key", function()
+    t.notified = {}
+    layer_with("b", "withbundle")
+    t.ok(notified("pinned withbundle to b"), "unexpected: " .. vim.inspect(t.notified))
+    t.ok(vim.startswith(entry("withbundle") or "", "[b] "), "pin not rendered: "
+        .. tostring(entry("withbundle")))
     vim.g.x_with_dir = nil
     layer_with("b")
     t.ok(vim.wait(3000, function()
         return vim.g.x_with_dir ~= nil
-    end, 10), "the mapped task never ran")
+    end, 10), "the pinned task never ran")
 end)
 
-t.test("layer: a free key says so and does nothing else", function()
+t.test("layer: pins persist on disk, per cwd", function()
+    local pins = require("fzf-pin.store").load("liter/" .. work:gsub("/", "%%"))
+    t.eq(pins, { b = "task withbundle" })
+    at(bare, function()
+        t.eq(require("fzf-pin.store").load("liter/" .. bare:gsub("/", "%%")), {})
+    end)
+end)
+
+t.test("layer: an entry already pinned is not pinned twice", function()
+    t.notified = {}
+    layer_with("q", "withbundle")
+    t.ok(notified("already on b"), "unexpected: " .. vim.inspect(t.notified))
+end)
+
+t.test("layer: a free key with nothing highlighted says so", function()
     t.notified = {}
     layer_with("q")
-    t.ok(notified("nothing on q"), "unexpected: " .. vim.inspect(t.notified))
+    t.ok(notified("nothing highlighted"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
-t.test("layer: entries render map() chars and the running marker", function()
-    local built = fzfpin.build(liter.source)
-    local bundled
-    for _, e in ipairs(built.entries()) do
-        if e:find("withbundle", 1, true) then
-            bundled = e
-        end
+t.test("layer: a param is listed, pinnable, and its key opens the value picker", function()
+    t.ok(entry("level = -O2"), "param not listed")
+    layer_with("l", "level = ")
+    t.ok(vim.startswith(entry("level = ") or "", "[l] "), "param pin not rendered")
+    local seen
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.ui.select = function(items, _opts, on_choice)
+        seen = items
+        on_choice(nil)
     end
-    t.ok(bundled and bundled:sub(1, 4) == "[b] ", "map()ped char not rendered: "
-        .. tostring(bundled))
+    layer_with("l")
+    vim.ui.select = ui_select
+    t.eq(seen and seen[1], "-O2", "the value picker did not open")
+end)
+
+t.test("layer: ctrl-x unpins", function()
+    local built = fzfpin.build(liter.source)
+    built.entries()
+    built.actions["ctrl-x"].fn({ assert(entry("withbundle")) })
+    built.actions["ctrl-x"].fn({ assert(entry("level = ")) })
+    t.ok(vim.startswith(entry("withbundle"), "    "), "still pinned: " .. entry("withbundle"))
+    t.ok(vim.startswith(entry("level = "), "    "), "still pinned: " .. entry("level = "))
 end)
 
 t.test("layer: O shows the last task's output buffer", function()
     run("streamer") -- make streamer the last task, with a buffer
     layer_with("O")
-    t.eq(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()), "liter://streamer")
+    t.eq(vim.api.nvim_get_current_buf(), term.buf("streamer"))
     vim.cmd.enew()
 end)
 
@@ -659,6 +643,15 @@ t.test("ctrl-c on a finished run's buffer says the task is not running", functio
     t.notified = {}
     ctrl_c(assert(term.buf("streamer"), "streamer has no output buffer"))
     t.ok(notified("streamer is not running"), "unexpected: " .. vim.inspect(t.notified))
+end)
+
+t.test("ctrl-c on an earlier run's buffer says that run has finished", function()
+    run("streamer")
+    local old = assert(term.buf("streamer"))
+    run("streamer")
+    t.notified = {}
+    ctrl_c(old)
+    t.ok(notified("this run of streamer has finished"), "unexpected: " .. vim.inspect(t.notified))
 end)
 
 t.test("kill on a task waiting in a prompt explains itself instead", function()
@@ -752,43 +745,32 @@ t.test("the layer source is empty but usable when no .liter.lua exists", functio
 end)
 
 -- --- param picker -----------------------------------------------------------
-t.test("pick_param shows the live value and persists a new selection", function()
-    local labels, step = {}, 0
+t.test("a param entry shows the live value and persists a new selection", function()
+    t.ok(entry("level = -O2"), "unexpected entries: "
+        .. vim.inspect(fzfpin.build(liter.source).entries()))
     ---@diagnostic disable-next-line: duplicate-set-field
-    vim.ui.select = function(items, opts, on_choice)
-        step = step + 1
-        if step == 1 then
-            for _, it in ipairs(items) do
-                table.insert(labels, opts.format_item(it))
-            end
-            on_choice(items[1])
-        else
-            on_choice(items[2]) -- "-O3"
-        end
+    vim.ui.select = function(items, _opts, on_choice)
+        on_choice(items[2]) -- "-O3"
     end
-    liter.pick_param()
+    layer_with("enter", "level = ")
     vim.ui.select = ui_select
-    t.eq(step, 2, "the second (value) picker never opened")
-    t.ok(labels[1] and labels[1]:find("level = -O2", 1, true),
-        "unexpected label: " .. vim.inspect(labels))
+    t.ok(entry("level = -O3"), "the label did not follow the new value")
     t.eq(state.get(vim.fs.joinpath(work, ".liter.lua"), "level"), "-O3")
     run("inherits")
     t.eq(vim.g.x_inherit, "hi-O3", "the new value did not reach the task")
 end)
 
-t.test("pick_param's new-value path writes the source and selects it", function()
+t.test("a param entry's new-value path writes the source and selects it", function()
     local file = vim.fs.joinpath(work, ".liter.lua")
-    local step = 0
     ---@diagnostic disable-next-line: duplicate-set-field
     vim.ui.select = function(items, _opts, on_choice)
-        step = step + 1
-        on_choice(step == 1 and items[1] or items[#items]) -- "  new value..."
+        on_choice(items[#items]) -- "  new value..."
     end
     ---@diagnostic disable-next-line: duplicate-set-field
     vim.ui.input = function(_opts, on_confirm)
         on_confirm("-Og")
     end
-    liter.pick_param()
+    layer_with("enter", "level = ")
     vim.ui.select, vim.ui.input = ui_select, ui_input
     t.eq(state.get(file, "level"), "-Og")
     t.ok(table.concat(vim.fn.readfile(file), "\n"):find('"-O3", "-Og"', 1, true),
@@ -797,7 +779,7 @@ t.test("pick_param's new-value path writes the source and selects it", function(
     state.set(file, "level", "-O2")
 end)
 
-t.test("a function-valued param runs as a task under V and persists the pick", function()
+t.test("a function-valued param runs as a task when activated and persists the pick", function()
     local dyn = vim.fs.joinpath(tmp, "dyn")
     local file = vim.fs.joinpath(dyn, ".liter.lua")
     write(file, [[
@@ -812,18 +794,14 @@ end
     at(dyn, function()
         run("report")
         t.eq(vim.g.x_which, "nil", "an unchosen function param must read nil")
-        local step, seen = 0, nil
+        local seen
         ---@diagnostic disable-next-line: duplicate-set-field
         vim.ui.select = function(items, _opts, on_choice)
-            step = step + 1
-            if step == 1 then
-                on_choice(items[1])
-            else
-                seen = items
-                on_choice(items[2])
-            end
+            seen = items
+            on_choice(items[2])
         end
-        liter.pick_param()
+        t.ok(entry("which = ?"), "an unchosen function param should read ?")
+        layer_with("enter", "which = ")
         -- the list function yields on out(): the value picker opens later
         t.ok(wait_idle(), "the V task did not finish")
         vim.ui.select = ui_select
@@ -930,12 +908,6 @@ t.test("run() rejects an unknown mode before spawning anything", function()
     end)
     t.eq(ok, false)
     t.ok(tostring(err):find('"live" or "captured"', 1, true), tostring(err))
-end)
-
-t.test("map() outside a load is an error, not a silent no-op", function()
-    local ok, err = pcall(require("liter.lib").map, "j", function() end)
-    t.eq(ok, false)
-    t.ok(tostring(err):find("top level", 1, true), tostring(err))
 end)
 
 -- a param declared inside a task would read a value but never register while

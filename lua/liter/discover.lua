@@ -6,7 +6,7 @@
 --
 -- Every function own-key of a file's env is a task (`local` = private, the
 -- habit lua-ls already enforces; Capitalized keeps its lowercase-global hint
--- quiet). Files re-execute on every load(): params and maps re-register from
+-- quiet). Files re-execute on every load(): params re-register from
 -- scratch and nothing is ever stale. The primitives are not injected: a file
 -- does `local l = require("liter")` like any Lua module user.
 --
@@ -14,7 +14,7 @@
 -- under the arc-mount rules; it must never grow into anything recursive.
 local M = {}
 
-M.loading = nil ---@type string|nil file currently executing (param/map registration)
+M.loading = nil ---@type string|nil file currently executing (param registration)
 local collect = nil -- load() output under construction
 
 function M.register_param(file, name, options)
@@ -28,13 +28,6 @@ function M.register_param(file, name, options)
         end
     end
     table.insert(collect.params, { file = file, name = name, options = options })
-end
-
-function M.register_map(key, fn)
-    if not collect then
-        return
-    end
-    table.insert(collect.raw_maps, { key = key, fn = fn, file = M.loading })
 end
 
 -- Directories with a .liter.lua, outermost first, plus the cwd they hang off.
@@ -74,7 +67,7 @@ end
 
 function M.load()
     local dirs, cwd = M.files()
-    collect = { tasks = {}, params = {}, raw_maps = {}, maps = {}, files = {}, cwd = cwd }
+    collect = { tasks = {}, params = {}, files = {}, cwd = cwd }
     local parent = setmetatable({}, { __index = _G })
     for _, dir in ipairs(dirs) do
         local file = vim.fs.joinpath(dir, ".liter.lua")
@@ -84,21 +77,18 @@ function M.load()
             vim.notify("liter: " .. tostring(lerr), vim.log.levels.ERROR)
         else
             setfenv(chunk, env)
-            -- parameter() and map() register as the chunk executes, so a file that
-            -- raises halfway has already put entries in the collector. Its tasks
-            -- are dropped below by never reaching the collection step; these have
+            -- parameter() registers as the chunk executes, so a file that raises
+            -- halfway has already put entries in the collector. Its tasks are
+            -- dropped below by never reaching the collection step; params have
             -- to be rolled back explicitly, or a file that fails to load still
             -- contributes params to the picker.
-            local nparams, nmaps = #collect.params, #collect.raw_maps
+            local nparams = #collect.params
             M.loading = file
             local ok, rerr = pcall(chunk)
             M.loading = nil
             if not ok then
                 for i = #collect.params, nparams + 1, -1 do
                     table.remove(collect.params, i)
-                end
-                for i = #collect.raw_maps, nmaps + 1, -1 do
-                    table.remove(collect.raw_maps, i)
                 end
                 vim.notify("liter: " .. tostring(rerr), vim.log.levels.ERROR)
             else
@@ -120,36 +110,6 @@ function M.load()
                         file = file,
                     })
                 end
-                -- resolve this file's map() calls: fn -> global name -> task
-                for _, m in ipairs(collect.raw_maps) do
-                    if m.file == file and not m.resolved then
-                        m.resolved = true
-                        -- the layer reads exactly one getcharstr() key: one
-                        -- char, or a K_SPECIAL (0x80) termcode from vim.keycode
-                        local one_key = m.key ~= ""
-                            and (vim.fn.strchars(m.key) == 1 or m.key:byte(1) == 0x80)
-                        local found = nil
-                        for k, v in pairs(env) do
-                            if v == m.fn then
-                                found = prefix .. k
-                                break
-                            end
-                        end
-                        if not one_key then
-                            vim.notify(
-                                ("liter: map(%q) is not a single key -- use one character"
-                                    .. " or vim.keycode(); skipped"):format(m.key),
-                                vim.log.levels.WARN)
-                        elseif not found then
-                            vim.notify(
-                                ("liter: map(%q) target is not a global of %s -- skipped")
-                                :format(m.key, file),
-                                vim.log.levels.WARN)
-                        else
-                            collect.maps[m.key] = found
-                        end
-                    end
-                end
                 parent = env
             end
         end
@@ -161,14 +121,6 @@ function M.load()
         end
         return a.name < b.name
     end)
-    -- maps store ids; point them at task entries now that sorting is done
-    local by_id = {}
-    for _, t in ipairs(collect.tasks) do
-        by_id[t.id] = t
-    end
-    for key, id in pairs(collect.maps) do
-        collect.maps[key] = by_id[id]
-    end
     local done = collect
     collect = nil
     return done

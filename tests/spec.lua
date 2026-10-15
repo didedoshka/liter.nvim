@@ -47,7 +47,6 @@ local level = l.parameter("level", { "-O2", "-O3" })
 function build()
     vim.g.liter_result = greeting .. level
 end
-l.map("b", build)
 function compose()
     vim.g.liter_compose = "haha" .. l.command({ "echo", "hehe" }):run("captured")
 end
@@ -103,11 +102,6 @@ end)
 
 t.test("tasks sort innermost first", function()
     t.ok(d.tasks[1].dir == vim.fs.normalize(inner), "first task not from inner file")
-end)
-
-t.test("map() resolves to the global's task", function()
-    t.ok(d.maps["b"], "map b missing")
-    t.eq(d.maps["b"].id, "build")
 end)
 
 t.test("params registered", function()
@@ -167,18 +161,22 @@ t.test("run() streams into a liter:// terminal buffer with exit marker", functio
         local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
         return text:find("x", 1, true) and text:find("[exit 0]", 1, true)
     end, 10), "buffer never showed output + exit marker")
-    t.eq(vim.api.nvim_buf_get_name(buf), "liter://stream")
+    t.ok(vim.api.nvim_buf_get_name(buf):match("^liter://stream_%d%d%-%d%d%-%d%d:%d%d:%d%d$"),
+        "unexpected name: " .. vim.api.nvim_buf_get_name(buf))
 end)
 
-t.test("re-run replaces the buffer under the same name", function()
+t.test("re-run opens a buffer of its own and keeps the previous run's", function()
     local before = require("liter.term").buf("stream")
     local task = find(discover.load(), "stream")
     runner.run(task)
     t.ok(wait_done(task), "second stream did not finish")
     local after = require("liter.term").buf("stream")
-    t.ok(after and after ~= before, "buffer was not replaced")
-    t.eq(vim.api.nvim_buf_get_name(after), "liter://stream")
-    t.eq(vim.api.nvim_buf_is_valid(before), false)
+    t.ok(after and after ~= before, "the re-run reused the buffer")
+    t.ok(vim.api.nvim_buf_is_valid(before), "the previous run's buffer was deleted")
+    -- both runs land in the same second here: the second name must not collide
+    t.ok(vim.api.nvim_buf_get_name(after) ~= vim.api.nvim_buf_get_name(before), "same name")
+    t.ok(vim.api.nvim_buf_get_name(after):match("^liter://stream_"),
+        "unexpected name: " .. vim.api.nvim_buf_get_name(after))
 end)
 
 -- --- error semantics --------------------------------------------------------
