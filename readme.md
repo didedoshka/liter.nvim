@@ -140,15 +140,15 @@ task (running ones marked), then every param as `name = value`. Activating a
 task runs it; activating a param opens its value picker → "new value...".
 Keys work inside the picker:
 
-| key | does |
-| --- | --- |
-| pinned lowercase | activates the entry pinned to it |
-| free lowercase | pins the highlighted entry to it (move with ctrl-n/ctrl-p first) |
-| `ctrl-x` | unpins the highlighted entry |
-| `C` | edit config |
-| `O` | show the last task's output buffer in the current window |
-| `R` | re-run the last task |
-| `i` | fzf-pin's search key: unbinds the chars, type to filter, enter activates |
+| key              | does                                                                     |
+| ---------------- | ------------------------------------------------------------------------ |
+| pinned lowercase | activates the entry pinned to it                                         |
+| free lowercase   | pins the highlighted entry (move with ctrl-n/ctrl-p), the picker stays   |
+| `ctrl-x`         | unpins the highlighted entry                                             |
+| `C`              | edit config                                                              |
+| `O`              | show the last task's output buffer in the current window                 |
+| `R`              | re-run the last task                                                     |
+| `i`              | fzf-pin's search: type to filter, enter activates, esc keeps the matches |
 
 Pins are saved in fzf-pin's store, one file per cwd
 (`stdpath("state")/fzf-pin/liter/<cwd>.json`): task ids are relative to cwd,

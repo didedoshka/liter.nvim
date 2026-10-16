@@ -51,7 +51,7 @@ local function choose_computed(p)
         file = p.file,
         dir = vim.fs.dirname(p.file),
         fn = function()
-            local v = lib.pick(p.options(), { prompt = p.name })
+            local v = lib.pick(p.options(), { prompt = p.name .. ":" })
             if v ~= nil then
                 require("liter.state").set(p.file, p.name, v)
             end
@@ -63,7 +63,8 @@ local function choose_computed(p)
 end
 
 -- the value picker of one param, with a trailing "new value..." that prompts
--- and writes the option back into the .liter.lua
+-- and writes the option back into the .liter.lua. The prompt ends in ":" as
+-- vim.ui.select's own default does -- fzf-lua turns that into "> "
 function M.choose_value(p)
     local state = require("liter.state")
     if type(p.options) == "function" then
@@ -72,7 +73,7 @@ function M.choose_value(p)
     end
     local options = vim.deepcopy(p.options)
     table.insert(options, NEW)
-    vim.ui.select(options, { prompt = p.name }, function(v)
+    vim.ui.select(options, { prompt = p.name .. ":" }, function(v)
         if v == nil then
             return
         end
@@ -147,24 +148,22 @@ M.source = {
             M.choose_value(item.data.param)
         end
     end,
+    -- what it returns is the picker's footer: the window stays up on a pin
     pin = function(char, item)
         if not item then
-            vim.notify("liter: nothing highlighted to pin", vim.log.levels.WARN)
-            return
+            return "nothing highlighted to pin"
         end
         local store = require("fzf-pin.store")
         local pins = store.load(ns())
         local key = pin_key(item.data)
         for c, k in pairs(pins) do
             if k == key then
-                vim.notify("liter: already on " .. c .. " (ctrl-x it to move)",
-                    vim.log.levels.WARN)
-                return
+                return "already on " .. c .. " (ctrl-x it to move)"
             end
         end
         pins[char] = key
         store.save(ns(), pins)
-        vim.notify(("pinned %s to %s"):format(vim.trim(item.label:match("^%S+")), char))
+        return ("pinned %s to %s"):format(vim.trim(item.label:match("^%S+")), char)
     end,
     unpin = function(item)
         if not item.char then

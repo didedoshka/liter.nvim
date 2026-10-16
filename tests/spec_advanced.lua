@@ -519,18 +519,28 @@ end)
 -- testable without a UI. run.sh finds fzf-pin where lazy.nvim loads it from.
 vim.opt.rtp:prepend(assert(vim.env.FZF_PIN_DIR, "run via tests/run.sh, which finds fzf-pin"))
 local fzfpin = require("fzf-pin.picker")
--- press key with the entry containing `highlight` under fzf's cursor
+-- press key with the entry containing `highlight` under fzf's cursor; returns
+-- what the picker's footer would say
 local function layer_with(key, highlight)
     local built = fzfpin.build(liter.source)
-    local selected = {}
+    local line
     for _, e in ipairs(built.entries()) do -- populates the char lookup, as fzf would
         if highlight and e:find(highlight, 1, true) then
-            selected = { e }
+            line = e
         end
     end
-    -- uppercase verbs are bound raw and dispatched by their underscore name
+    -- enter and the verbs are plain binds (uppercase ones dispatched by their
+    -- underscore name); a lowercase key is decided at press time, and a
+    -- pinned one accepts
     local action = built.actions[key] or built.actions["_verb_" .. key:lower()]
-    action(selected)
+    if action then
+        return action({ line })
+    end
+    local next, say = built.press(key, line)
+    if next == "accept" then
+        built.actions["_char_" .. key]()
+    end
+    return say
 end
 
 local function entry(needle)
@@ -542,9 +552,7 @@ local function entry(needle)
 end
 
 t.test("layer: a free key pins the highlighted task, which then runs on that key", function()
-    t.notified = {}
-    layer_with("b", "withbundle")
-    t.ok(notified("pinned withbundle to b"), "unexpected: " .. vim.inspect(t.notified))
+    t.eq(layer_with("b", "withbundle"), "pinned withbundle to b")
     t.ok(vim.startswith(entry("withbundle") or "", "[b] "), "pin not rendered: "
         .. tostring(entry("withbundle")))
     vim.g.x_with_dir = nil
@@ -563,37 +571,37 @@ t.test("layer: pins persist on disk, per cwd", function()
 end)
 
 t.test("layer: an entry already pinned is not pinned twice", function()
-    t.notified = {}
-    layer_with("q", "withbundle")
-    t.ok(notified("already on b"), "unexpected: " .. vim.inspect(t.notified))
+    local say = layer_with("q", "withbundle")
+    t.ok(say and say:find("already on b", 1, true), "unexpected: " .. tostring(say))
 end)
 
 t.test("layer: a free key with nothing highlighted says so", function()
-    t.notified = {}
-    layer_with("q")
-    t.ok(notified("nothing highlighted"), "unexpected: " .. vim.inspect(t.notified))
+    local say = layer_with("q")
+    t.ok(say and say:find("nothing highlighted", 1, true), "unexpected: " .. tostring(say))
 end)
 
 t.test("layer: a param is listed, pinnable, and its key opens the value picker", function()
     t.ok(entry("level = -O2"), "param not listed")
     layer_with("l", "level = ")
     t.ok(vim.startswith(entry("level = ") or "", "[l] "), "param pin not rendered")
-    local seen
+    local seen, prompt
     ---@diagnostic disable-next-line: duplicate-set-field
-    vim.ui.select = function(items, _opts, on_choice)
-        seen = items
+    vim.ui.select = function(items, opts, on_choice)
+        seen, prompt = items, opts.prompt
         on_choice(nil)
     end
     layer_with("l")
     vim.ui.select = ui_select
     t.eq(seen and seen[1], "-O2", "the value picker did not open")
+    -- vim.ui.select's own prompt shape, which fzf-lua renders as "level> "
+    t.eq(prompt, "level:")
 end)
 
 t.test("layer: ctrl-x unpins", function()
     local built = fzfpin.build(liter.source)
     built.entries()
-    built.actions["ctrl-x"].fn({ assert(entry("withbundle")) })
-    built.actions["ctrl-x"].fn({ assert(entry("level = ")) })
+    built.press("ctrl-x", assert(entry("withbundle")))
+    built.press("ctrl-x", assert(entry("level = ")))
     t.ok(vim.startswith(entry("withbundle"), "    "), "still pinned: " .. entry("withbundle"))
     t.ok(vim.startswith(entry("level = "), "    "), "still pinned: " .. entry("level = "))
 end)
