@@ -54,13 +54,20 @@ function M.open(id)
     end
     vim.api.nvim_buf_set_name(buf, unique_name(id))
     -- the same leak whenever the buffer is opened from another terminal, e.g.
-    -- the `s` picker's fzf window (measured: the mode is still "t" here)
+    -- the `s` picker's fzf window (measured: the mode is still "t" here).
+    -- Decided a tick later, and only if the buffer is still current: fzf-lua,
+    -- closing any picker, passes through the previous window, and a stop
+    -- there carried over to the picker the action opened next (measured: a
+    -- param's value picker after `x` landed in normal mode)
     vim.api.nvim_create_autocmd("BufEnter", {
         buffer = buf,
         callback = function()
-            if vim.api.nvim_get_mode().mode == "t" then
-                vim.cmd.stopinsert()
-            end
+            vim.schedule(function()
+                local current = vim.api.nvim_get_current_buf() == buf
+                if current and vim.api.nvim_get_mode().mode == "t" then
+                    vim.cmd.stopinsert()
+                end
+            end)
         end,
     })
     -- ctrl-c interrupts the buffer's task, the reflex from real terminals --

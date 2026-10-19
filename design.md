@@ -481,7 +481,11 @@ tests cover all of it (`tests/run.sh`, 24 cases).
     stays to compare against. Opening one from another terminal used to stay
     in terminal mode (measured: the mode is still "t" in the buffer's
     BufEnter); a buffer-local BufEnter now stops it -- the same guard on
-    TermEnter did not (measured).
+    TermEnter did not (measured). It decides a tick later (2026-10-20), and
+    only if the buffer is still current: fzf-lua, closing any picker, passes
+    through the previous window, and a stop there carried over to the picker
+    the action opened next (measured: a param's value picker after `x`
+    landed in normal mode).
 
 24. **`:LiterCloseAll` (2026-10-15):** a buffer per run piles them up.
     It wipes (they are dead terminals, nothing to keep) every `liter://`
