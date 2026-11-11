@@ -26,7 +26,7 @@ helpers for cmake projects.
 - No owned windows, no floats. Output is a `liter://` buffer per run;
   failures are a single `vim.notify`, never a traceback.
 - Discovery stats exact paths upward only -- **never anything recursive**
-  (arc-mount rules, see the global CLAUDE.md; a hook enforces it).
+  (arc-mount rules, see the global AGENTS.md; a hook enforces it).
 - `.liter.lua` files re-execute on every load; nothing may cache their contents.
 
 ## Verify
